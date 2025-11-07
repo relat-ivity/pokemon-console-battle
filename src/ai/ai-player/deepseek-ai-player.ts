@@ -34,6 +34,16 @@ export class DeepSeekAIPlayer extends AIPlayer {
 	private lastRequest: SwitchRequest | TeamPreviewRequest | MoveRequest | null = null;
 	private opponentTeam: { [name: string]: OpponentPokemon } = {};
 	private opponentTeamData: any[] | null = null;
+	
+	// 场地状态跟踪
+	private weather: string | null = null;
+	private terrain: string | null = null;
+	private pseudoWeather: Set<string> = new Set();
+	private mySideConditions: Set<string> = new Set();
+	private opponentSideConditions: Set<string> = new Set();
+	
+	// 动态确定哪个是我方
+	private mySideId: string | null = null; // 'p1' 或 'p2'
 
     constructor(
         playerStream: any,
@@ -45,6 +55,249 @@ export class DeepSeekAIPlayer extends AIPlayer {
 		this.translator = Translator.getInstance();
 		this.opponentTeamData = opponentTeamData;
     }
+
+	/**
+	 * 重写接收消息方法，监听战斗消息流以跟踪场地状态
+	 */
+	override receive(message: string): void {
+		super.receive(message);
+		
+		// 解析消息流，更新场地状态
+		const lines = message.split('\n');
+		for (const line of lines) {
+			this.parseFieldMessage(line);
+		}
+	}
+
+	/**
+	 * 解析战斗消息，更新场地状态
+	 * AI 是 p2，对手是 p1
+	 */
+	private parseFieldMessage(line: string): void {
+		const parts = line.split('|').filter(p => p);
+		if (parts.length === 0) return;
+
+		const cmd = parts[0];
+
+	// ========== 场地状态 ==========
+	
+	// 天气相关
+	if (cmd === '-weather') {
+		// |-weather|RainDance 或 |-weather|none
+		const weather = parts[1];
+		this.weather = (weather === 'none' || !weather) ? null : weather;
+	}
+
+	// 场地条件开始（包括场地和全场效果）
+	else if (cmd === '-fieldstart') {
+		// |-fieldstart|move: Electric Terrain
+		// |-fieldstart|move: Trick Room
+		const condition = parts[1];
+		if (condition) {
+			const effectName = condition.startsWith('move: ') ? condition.substring(6) : condition;
+			
+			// 判断是场地还是全场效果
+			const terrainNames = ['Electric Terrain', 'Grassy Terrain', 'Misty Terrain', 'Psychic Terrain'];
+			if (terrainNames.includes(effectName)) {
+				this.terrain = effectName;
+			} else {
+				this.pseudoWeather.add(effectName);
+			}
+		}
+	}
+
+	// 场地条件结束
+	else if (cmd === '-fieldend') {
+		// |-fieldend|move: Electric Terrain
+		// |-fieldend|move: Trick Room
+		const condition = parts[1];
+		if (condition) {
+			const effectName = condition.startsWith('move: ') ? condition.substring(6) : condition;
+			
+			const terrainNames = ['Electric Terrain', 'Grassy Terrain', 'Misty Terrain', 'Psychic Terrain'];
+			if (terrainNames.includes(effectName)) {
+				this.terrain = null;
+			} else {
+				this.pseudoWeather.delete(effectName);
+			}
+		}
+	}
+
+	// 场地效果开始
+	else if (cmd === '-sidestart') {
+		// |-sidestart|SIDE|CONDITION
+		// 例如: |-sidestart|p1|move: Stealth Rock
+		// 例如: |-sidestart|p2|Spikes
+		const side = parts[1];
+		const condition = parts[2];
+		
+		if (condition) {
+			// 移除 'move: ' 前缀（如果有的话）
+			const conditionName = condition.startsWith('move: ') ? condition.substring(6) : condition;
+			
+			if (side === 'p2') {
+				this.mySideConditions.add(conditionName);
+			} else if (side === 'p1') {
+				this.opponentSideConditions.add(conditionName);
+			}
+		}
+	}
+
+	// 场地效果结束
+	else if (cmd === '-sideend') {
+		// |-sideend|SIDE|CONDITION
+		// 例如: |-sideend|p2|move: Light Screen
+		// 例如: |-sideend|p1|Reflect
+		const side = parts[1];
+		const condition = parts[2];
+		
+		if (condition) {
+			// 移除 'move: ' 前缀（如果有的话）
+			const conditionName = condition.startsWith('move: ') ? condition.substring(6) : condition;
+			
+			if (side === 'p2') {
+				this.mySideConditions.delete(conditionName);
+			} else if (side === 'p1') {
+				this.opponentSideConditions.delete(conditionName);
+			}
+		}
+	}
+
+		// ========== 对手宝可梦追踪（p1）==========
+		
+		// 对手宝可梦出战
+		else if (cmd === 'switch' || cmd === 'drag') {
+			// |switch|p1a: Pikachu|Pikachu, L50, M|100/100
+			const ident = parts[1];
+			if (ident && ident.startsWith('p1')) {
+				const speciesName = ident.split(': ')[1];
+				const condition = parts[3] || '100/100';
+				
+				// 标记所有对手宝可梦为非出战
+				Object.keys(this.opponentTeam).forEach(key => {
+					this.opponentTeam[key].active = false;
+				});
+				
+				// 更新当前出战的宝可梦
+				if (!this.opponentTeam[speciesName]) {
+					this.opponentTeam[speciesName] = {
+						name: speciesName,
+						condition: condition,
+						active: true,
+						boosts: {}
+					};
+				} else {
+					this.opponentTeam[speciesName].condition = condition;
+					this.opponentTeam[speciesName].active = true;
+					this.opponentTeam[speciesName].boosts = {}; // 重置能力变化
+				}
+			}
+		}
+
+		// 对手宝可梦HP变化
+		else if (cmd === '-damage' || cmd === '-heal') {
+			// |-damage|p1a: Pikachu|50/100
+			const ident = parts[1];
+			const condition = parts[2];
+			if (ident && ident.startsWith('p1')) {
+				const speciesName = ident.split(': ')[1];
+				if (this.opponentTeam[speciesName]) {
+					this.opponentTeam[speciesName].condition = condition;
+				}
+			}
+		}
+
+		// 对手宝可梦倒下
+		else if (cmd === 'faint') {
+			// |faint|p1a: Pikachu
+			const ident = parts[1];
+			if (ident && ident.startsWith('p1')) {
+				const speciesName = ident.split(': ')[1];
+				if (this.opponentTeam[speciesName]) {
+					this.opponentTeam[speciesName].condition = '0 fnt';
+					this.opponentTeam[speciesName].active = false;
+				}
+			}
+		}
+
+		// 对手的能力提升
+		else if (cmd === '-boost') {
+			// |-boost|p1a: Pikachu|atk|1
+			const ident = parts[1];
+			if (ident && ident.startsWith('p1')) {
+				const speciesName = ident.split(': ')[1];
+				const stat = parts[2];
+				const amount = parseInt(parts[3] || '1');
+				
+				if (this.opponentTeam[speciesName]) {
+					if (!this.opponentTeam[speciesName].boosts) {
+						this.opponentTeam[speciesName].boosts = {};
+					}
+					this.opponentTeam[speciesName].boosts![stat] = 
+						(this.opponentTeam[speciesName].boosts![stat] || 0) + amount;
+				}
+			}
+		}
+
+		// 对手的能力下降
+		else if (cmd === '-unboost') {
+			// |-unboost|p1a: Pikachu|def|1
+			const ident = parts[1];
+			if (ident && ident.startsWith('p1')) {
+				const speciesName = ident.split(': ')[1];
+				const stat = parts[2];
+				const amount = parseInt(parts[3] || '1');
+				
+				if (this.opponentTeam[speciesName]) {
+					if (!this.opponentTeam[speciesName].boosts) {
+						this.opponentTeam[speciesName].boosts = {};
+					}
+					this.opponentTeam[speciesName].boosts![stat] = 
+						(this.opponentTeam[speciesName].boosts![stat] || 0) - amount;
+				}
+			}
+		}
+
+		// 对手能力变化清除
+		else if (cmd === '-clearboost' || cmd === '-clearallboost') {
+			// |-clearboost|p1a: Pikachu
+			const ident = parts[1];
+			if (ident && ident.startsWith('p1')) {
+				const speciesName = ident.split(': ')[1];
+				
+				if (this.opponentTeam[speciesName]) {
+					this.opponentTeam[speciesName].boosts = {};
+				}
+			}
+		}
+
+		// 对手状态异常
+		else if (cmd === '-status') {
+			// |-status|p1a: Pikachu|par
+			const ident = parts[1];
+			if (ident && ident.startsWith('p1')) {
+				const speciesName = ident.split(': ')[1];
+				const status = parts[2];
+				
+				if (this.opponentTeam[speciesName]) {
+					this.opponentTeam[speciesName].status = status;
+				}
+			}
+		}
+
+		// 对手治愈状态
+		else if (cmd === '-curestatus') {
+			// |-curestatus|p1a: Pikachu|par
+			const ident = parts[1];
+			if (ident && ident.startsWith('p1')) {
+				const speciesName = ident.split(': ')[1];
+				
+				if (this.opponentTeam[speciesName]) {
+					this.opponentTeam[speciesName].status = undefined;
+				}
+			}
+		}
+	}
 
     /**
 	 * 处理强制切换（宝可梦倒下时）
@@ -446,6 +699,45 @@ export class DeepSeekAIPlayer extends AIPlayer {
 		if (!('side' in request) || !request.side || !request.side.pokemon) {
 			return state + '（无法获取战场信息）\n';
 		}
+
+	// 场地信息（仅战斗中显示）
+	if (!isTeamPreview) {
+		let fieldInfo = '';
+		
+		// 天气信息
+		if (this.weather) {
+			const weatherCN = this.translate(this.weather, 'weathers');
+			fieldInfo += `   天气: ${weatherCN}\n`;
+		}
+		
+		// 场地信息
+		if (this.terrain) {
+			const terrainCN = this.translate(this.terrain, 'terrains');
+			fieldInfo += `   场地: ${terrainCN}\n`;
+		}
+		
+		// 全场效果（伪天气）
+		if (this.pseudoWeather.size > 0) {
+			const effects = Array.from(this.pseudoWeather).map(e => this.translate(e, 'moves')).join(', ');
+			fieldInfo += `   全场效果: ${effects}\n`;
+		}
+		
+		// 我方场地效果
+		if (this.mySideConditions.size > 0) {
+			const effects = Array.from(this.mySideConditions).map(e => this.translate(e, 'moves')).join(', ');
+			fieldInfo += `   我方场地: ${effects}\n`;
+		}
+		
+		// 对手场地效果
+		if (this.opponentSideConditions.size > 0) {
+			const effects = Array.from(this.opponentSideConditions).map(e => this.translate(e, 'moves')).join(', ');
+			fieldInfo += `   对手场地: ${effects}\n`;
+		}
+		
+		if (fieldInfo) {
+			state += '【场地状态】\n' + fieldInfo + '\n';
+		}
+	}
 
 		// 我方队伍信息
 		state += '【我方队伍】\n';
