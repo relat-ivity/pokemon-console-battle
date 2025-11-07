@@ -1,7 +1,8 @@
 
 # Pokémon Text Battle
    
-可以以**文本形式**和AI进行第九代随机宝可梦六六单打对战
+可以以**文本形式**和AI进行宝可梦第九代ou宝可梦六六单打对战
+- 双方的宝可梦随机分配，各项努力值为85，性格为勤奋
 
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -47,6 +48,7 @@ node src/battle/pve-battle.js
 在对战中，你可以使用以下指令：
 
 ```bash
+team 123456         # 选择首发顺序
 move 1              # 使用第1个招式
 move 2              # 使用第2个招式
 switch 2            # 切换到第2只宝可梦
