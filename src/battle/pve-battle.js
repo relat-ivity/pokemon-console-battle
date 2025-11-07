@@ -6,135 +6,23 @@
  */
 
 const Sim = require('pokemon-showdown');
-const AIPlayerFactory = require('../../dist/ai/ai-player-factory');
+const { AIPlayerFactory, AIType } = require('../../dist/ai/ai-player-factory');
 const readline = require('readline');
-const Translator = require('../../dist/support/translator');
+const { Translator } = require('../../dist/support/translator');
 const fs = require('fs');
 const path = require('path');
 
+// debug设置
+let debug_mode = ture;
 
-
-let translator = Translator.getInstance();
-
-
-// 性格对属性的影响
-const natureEffects = {
-	'Hardy': {
-		plus: null,
-		minus: null
-	},
-	'Lonely': {
-		plus: 'atk',
-		minus: 'def'
-	},
-	'Brave': {
-		plus: 'atk',
-		minus: 'spe'
-	},
-	'Adamant': {
-		plus: 'atk',
-		minus: 'spa'
-	},
-	'Naughty': {
-		plus: 'atk',
-		minus: 'spd'
-	},
-	'Bold': {
-		plus: 'def',
-		minus: 'atk'
-	},
-	'Docile': {
-		plus: null,
-		minus: null
-	},
-	'Relaxed': {
-		plus: 'def',
-		minus: 'spe'
-	},
-	'Impish': {
-		plus: 'def',
-		minus: 'spa'
-	},
-	'Lax': {
-		plus: 'def',
-		minus: 'spd'
-	},
-	'Timid': {
-		plus: 'spe',
-		minus: 'atk'
-	},
-	'Hasty': {
-		plus: 'spe',
-		minus: 'def'
-	},
-	'Serious': {
-		plus: null,
-		minus: null
-	},
-	'Jolly': {
-		plus: 'spe',
-		minus: 'spa'
-	},
-	'Naive': {
-		plus: 'spe',
-		minus: 'spd'
-	},
-	'Modest': {
-		plus: 'spa',
-		minus: 'atk'
-	},
-	'Mild': {
-		plus: 'spa',
-		minus: 'def'
-	},
-	'Quiet': {
-		plus: 'spa',
-		minus: 'spe'
-	},
-	'Bashful': {
-		plus: null,
-		minus: null
-	},
-	'Rash': {
-		plus: 'spa',
-		minus: 'spd'
-	},
-	'Calm': {
-		plus: 'spd',
-		minus: 'atk'
-	},
-	'Gentle': {
-		plus: 'spd',
-		minus: 'def'
-	},
-	'Sassy': {
-		plus: 'spd',
-		minus: 'spe'
-	},
-	'Careful': {
-		plus: 'spd',
-		minus: 'spa'
-	},
-	'Quirky': {
-		plus: null,
-		minus: null
-	}
-};
+// 翻译器
+let translator = Translator.getInstance('cn');
 
 // 创建命令行输入接口
 const rl = readline.createInterface({
 	input: process.stdin,
 	output: process.stdout
 });
-
-// 提示输入的辅助函数
-function prompt(question) {
-	return new Promise((resolve) => {
-		rl.question(question, (answer) => {
-			resolve(answer.trim());
-		});
-	});
-}
 
 // 主战斗逻辑
 async function startPVEBattle() {
@@ -150,40 +38,35 @@ async function startPVEBattle() {
 	console.log('    太晶化攻击: move 1 terastallize  (使用第1个招式并太晶化)');
 	console.log('    查看队伍: team  (查看所有宝可梦状态)');
 
-	console.log("请选择对手：\n    1. DeepSeek AI\n    2. 本地智能AI");
+	console.log("\n请选择对手：\n    1. DeepSeek AI\n    2. 本地智能AI\n    3. 随机AI");
 	const opponentChoice = await prompt('请输入对手编号:');
-	const opponent = opponentChoice === '1' ? 'DeepSeek AI' : '本地智能AI';
-
-	console.log('\n正在生成随机队伍...\n');
-
-	// 创建战斗流（必须在创建 AI 之前）
-	const streams = Sim.getPlayerStreams(new Sim.BattleStream());
-
-	// 通过工厂创建 AI 对手
-	const aiType = opponentChoice === '1' ? 'deepseek' : 'smart';
-	const ai = AIPlayerFactory.createAI(aiType, streams.p2, {}, false, translations);
+	let opponent = '本地智能AI';
+	let aiType = 'smart_ai';
+	if (opponentChoice === '1') {
+		opponent = 'DeepSeek AI';
+		aiType = 'deepseek_ai';
+	} else if (opponentChoice === '2') {
+		opponent = '本地智能AI';
+		aiType = 'smart_ai';
+	} else if (opponentChoice === '3') {
+		opponent = '随机AI';
+		aiType = 'random_ai';
+	} else {
+		console.log("未知对手，将使用本地智能AI")
+	}
 
 	// 设置战斗参数
 	const spec = {
 		formatid: format,
 	};
 
-	// 所有可用性格
-	const natures = [
-		'Hardy', 'Lonely', 'Brave', 'Adamant', 'Naughty',
-		'Bold', 'Docile', 'Relaxed', 'Impish', 'Lax',
-		'Timid', 'Hasty', 'Serious', 'Jolly', 'Naive',
-		'Modest', 'Mild', 'Quiet', 'Bashful', 'Rash',
-		'Calm', 'Gentle', 'Sassy', 'Careful', 'Quirky'
-	];
-
 	// 生成随机队伍 - 使用 gen9randombattle 生成，然后设置为50级
 	let p1team = Sim.Teams.generate('gen9randombattle');
-	// 将所有宝可梦设置为50级，并设置努力值每项为85，添加随机性格
+	// 将所有宝可梦设置为50级，并设置努力值每项为85，性格统一为Hardy（勤奋）
 	p1team = p1team.map(pokemon => ({
 		...pokemon,
 		level: 50,
-		nature: pokemon.nature || natures[Math.floor(Math.random() * natures.length)],
+		nature: 'Hardy',
 		evs: {
 			hp: 85,
 			atk: 85,
@@ -200,11 +83,11 @@ async function startPVEBattle() {
 	};
 
 	let p2team = Sim.Teams.generate('gen9randombattle');
-	// 将所有宝可梦设置为50级，并设置努力值每项为85，添加随机性格
+	// 将所有宝可梦设置为50级，并设置努力值每项为85，性格统一为Hardy（勤奋）
 	p2team = p2team.map(pokemon => ({
 		...pokemon,
 		level: 50,
-		nature: pokemon.nature || natures[Math.floor(Math.random() * natures.length)],
+		nature: 'Hardy',
 		evs: {
 			hp: 85,
 			atk: 85,
@@ -219,6 +102,11 @@ async function startPVEBattle() {
 		name: "AI 对手",
 		team: Sim.Teams.pack(p2team),
 	};
+
+	// 创建战斗流
+	const streams = Sim.getPlayerStreams(new Sim.BattleStream());
+	const ai = AIPlayerFactory.createAI(aiType, streams.p2, false, p1team);
+	console.log(`✓ 已创建对手: ${opponent}\n`);
 
 	// 显示你的队伍信息
 	displayTeamInfo(p1team, playerName);
@@ -260,6 +148,7 @@ async function startPVEBattle() {
 				const lines = chunk.split('\n');
 
 				for (const line of lines) {
+					if(debug_mode) console.log("[Debug] " + line);
 					// 显示战斗消息（过滤部分冗余信息）
 					if (line.startsWith('|')) {
 						// 格式化显示重要的战斗信息
@@ -411,26 +300,17 @@ async function startPVEBattle() {
 							const pokemonName = pokemon.split(': ')[1];
 							const pokemonCN = translate(pokemonName, 'pokemon');
 							console.log(`  → ${player} ${pokemonCN} 太晶化了! 属性变为: ${teraType}`);
-						} else if (line.startsWith('|-boost|')) {
-							const parts = line.split('|');
-							const pokemon = parts[2];
-							const stat = parts[3];
-							const amount = parseInt(parts[4]);
-							const isPlayer = pokemon.startsWith('p1');
-							const player = isPlayer ? '【你】' : '【对手】';
-							const pokemonName = pokemon.split(': ')[1];
-							const pokemonCN = translate(pokemonName, 'pokemon');
-							const statNames = {
-								'atk': '攻击',
-								'def': '防御',
-								'spa': '特攻',
-								'spd': '特防',
-								'spe': '速度',
-								'accuracy': '命中率',
-								'evasion': '回避率'
-							};
-							const statCN = statNames[stat] || stat;
-							console.log(`  → ${player} ${pokemonCN} 的${statCN}上升了 ${amount} 级!`);
+					} else if (line.startsWith('|-boost|')) {
+						const parts = line.split('|');
+						const pokemon = parts[2];
+						const stat = parts[3];
+						const amount = parseInt(parts[4]);
+						const isPlayer = pokemon.startsWith('p1');
+						const player = isPlayer ? '【你】' : '【对手】';
+						const pokemonName = pokemon.split(': ')[1];
+						const pokemonCN = translate(pokemonName, 'pokemon');
+						const statCN = translate(stat, 'boosts');
+						console.log(`  → ${player} ${pokemonCN} 的${statCN}上升了 ${amount} 级!`);
 
 							// 更新能力变化
 							if (isPlayer) {
@@ -440,26 +320,17 @@ async function startPVEBattle() {
 								// 更新对手能力变化
 								opponentActive.boosts[stat] = (opponentActive.boosts[stat] || 0) + amount;
 							}
-						} else if (line.startsWith('|-unboost|')) {
-							const parts = line.split('|');
-							const pokemon = parts[2];
-							const stat = parts[3];
-							const amount = parseInt(parts[4]);
-							const isPlayer = pokemon.startsWith('p1');
-							const player = isPlayer ? '【你】' : '【对手】';
-							const pokemonName = pokemon.split(': ')[1];
-							const pokemonCN = translate(pokemonName, 'pokemon');
-							const statNames = {
-								'atk': '攻击',
-								'def': '防御',
-								'spa': '特攻',
-								'spd': '特防',
-								'spe': '速度',
-								'accuracy': '命中率',
-								'evasion': '回避率'
-							};
-							const statCN = statNames[stat] || stat;
-							console.log(`  → ${player} ${pokemonCN} 的${statCN}下降了 ${amount} 级!`);
+					} else if (line.startsWith('|-unboost|')) {
+						const parts = line.split('|');
+						const pokemon = parts[2];
+						const stat = parts[3];
+						const amount = parseInt(parts[4]);
+						const isPlayer = pokemon.startsWith('p1');
+						const player = isPlayer ? '【你】' : '【对手】';
+						const pokemonName = pokemon.split(': ')[1];
+						const pokemonCN = translate(pokemonName, 'pokemon');
+						const statCN = translate(stat, 'boosts');
+						console.log(`  → ${player} ${pokemonCN} 的${statCN}下降了 ${amount} 级!`);
 
 							// 更新能力变化
 							if (isPlayer) {
@@ -524,17 +395,7 @@ async function startPVEBattle() {
 							const parts = line.split('|');
 							const weather = parts[2];
 							if (weather && weather !== 'none') {
-								const weatherNames = {
-									'RainDance': '下雨',
-									'Sandstorm': '沙暴',
-									'Hail': '冰雹',
-									'Snow': '下雪',
-									'SunnyDay': '大晴天',
-									'Desolate Land': '大日照',
-									'Primordial Sea': '大雨',
-									'Delta Stream': '乱流'
-								};
-								const weatherCN = weatherNames[weather] || weather;
+								const weatherCN = translate(weather, 'weathers');
 								console.log(`  → 天气变为: ${weatherCN}`);
 								battleField.weather = weather;
 							} else {
@@ -543,29 +404,28 @@ async function startPVEBattle() {
 						} else if (line.startsWith('|-fieldstart|')) {
 							const parts = line.split('|');
 							const field = parts[2].replace('move: ', '');
-							const fieldNames = {
-								'Electric Terrain': '电气场地',
-								'Grassy Terrain': '青草场地',
-								'Misty Terrain': '薄雾场地',
-								'Psychic Terrain': '精神场地',
-								'Trick Room': '戏法空间'
-							};
-							const fieldCN = fieldNames[field] || field;
-							console.log(`  → 场地变为: ${fieldCN}`);
-							battleField.terrain = field;
+							// 判断是场地还是全场效果
+							const terrainNames = ['Electric Terrain', 'Grassy Terrain', 'Misty Terrain', 'Psychic Terrain'];
+							if (terrainNames.includes(field)) {
+								const fieldCN = translate(field, 'terrains');
+								console.log(`  → 场地变为: ${fieldCN}`);
+								battleField.terrain = field;
+							} else {
+								const fieldCN = translate(field, 'moves');
+								console.log(`  → ${fieldCN} 开始了!`);
+							}
 						} else if (line.startsWith('|-fieldend|')) {
 							const parts = line.split('|');
 							const field = parts[2].replace('move: ', '');
-							const fieldNames = {
-								'Electric Terrain': '电气场地',
-								'Grassy Terrain': '青草场地',
-								'Misty Terrain': '薄雾场地',
-								'Psychic Terrain': '精神场地',
-								'Trick Room': '戏法空间'
-							};
-							const fieldCN = fieldNames[field] || field;
-							console.log(`  → ${fieldCN} 消失了!`);
-							battleField.terrain = null;
+							const terrainNames = ['Electric Terrain', 'Grassy Terrain', 'Misty Terrain', 'Psychic Terrain'];
+							if (terrainNames.includes(field)) {
+								const fieldCN = translate(field, 'terrains');
+								console.log(`  → ${fieldCN} 消失了!`);
+								battleField.terrain = null;
+							} else {
+								const fieldCN = translate(field, 'moves');
+								console.log(`  → ${fieldCN} 结束了!`);
+							}
 						}
 					}
 
@@ -681,32 +541,15 @@ function displayChoices(request, battleField, opponentActive, playerBoosts, play
 			console.log('\n' + '='.repeat(50));
 			console.log('场地状态:');
 
-			if (battleField.weather) {
-				const weatherNames = {
-					'RainDance': '下雨',
-					'Sandstorm': '沙暴',
-					'Hail': '冰雹',
-					'Snow': '下雪',
-					'SunnyDay': '大晴天',
-					'Desolate Land': '大日照',
-					'Primordial Sea': '大雨',
-					'Delta Stream': '乱流'
-				};
-				const weatherCN = weatherNames[battleField.weather] || battleField.weather;
-				console.log(`   天气: ${weatherCN}`);
-			}
+		if (battleField.weather) {
+			const weatherCN = translate(battleField.weather, 'weathers');
+			console.log(`   天气: ${weatherCN}`);
+		}
 
-			if (battleField.terrain) {
-				const terrainNames = {
-					'Electric Terrain': '电气场地',
-					'Grassy Terrain': '青草场地',
-					'Misty Terrain': '薄雾场地',
-					'Psychic Terrain': '精神场地',
-					'Trick Room': '戏法空间'
-				};
-				const terrainCN = terrainNames[battleField.terrain] || battleField.terrain;
-				console.log(`   场地: ${terrainCN}`);
-			}
+		if (battleField.terrain) {
+			const terrainCN = translate(battleField.terrain, 'terrains');
+			console.log(`   场地: ${terrainCN}`);
+		}
 
 			if (battleField.p1Side.length > 0) {
 				const effects = battleField.p1Side.map(e => translate(e, 'moves')).join(', ');
@@ -735,43 +578,27 @@ function displayChoices(request, battleField, opponentActive, playerBoosts, play
 
 			console.log(speciesLog);
 
-			if (opponentActive.status) {
-				const statusNames = {
-					'slp': '睡眠',
-					'par': '麻痹',
-					'frz': '冰冻',
-					'brn': '灼伤',
-					'psn': '中毒',
-					'tox': '剧毒'
-				};
-				console.log(`   状态: ${statusNames[opponentActive.status] || opponentActive.status}`);
-			}
+		if (opponentActive.status) {
+			const statusCN = translate(opponentActive.status, 'status');
+			console.log(`   状态: ${statusCN}`);
+		}
 
-			// 显示对手能力等级变化
-			if (opponentActive.boosts) {
-				const boosts = [];
-				const boostNames = {
-					'atk': '攻击',
-					'def': '防御',
-					'spa': '特攻',
-					'spd': '特防',
-					'spe': '速度',
-					'accuracy': '命中',
-					'evasion': '闪避'
-				};
-				for (const stat in opponentActive.boosts) {
-					const boost = opponentActive.boosts[stat];
-					// 只有非零的能力变化才显示
-					if (typeof boost === 'number' && boost !== 0) {
-						const statCN = boostNames[stat] || stat;
-						const sign = boost > 0 ? '+' : '';
-						boosts.push(`${statCN}${sign}${boost}`);
-					}
-				}
-				if (boosts.length > 0) {
-					console.log(`   能力变化: ${boosts.join(' ')}`);
+		// 显示对手能力等级变化
+		if (opponentActive.boosts) {
+			const boosts = [];
+			for (const stat in opponentActive.boosts) {
+				const boost = opponentActive.boosts[stat];
+				// 只有非零的能力变化才显示
+				if (typeof boost === 'number' && boost !== 0) {
+					const statCN = translate(stat, 'boosts');
+					const sign = boost > 0 ? '+' : '';
+					boosts.push(`${statCN}${sign}${boost}`);
 				}
 			}
+			if (boosts.length > 0) {
+				console.log(`   能力变化: ${boosts.join(' ')}`);
+			}
+		}
 		}
 
 		// 显示当前宝可梦
@@ -812,48 +639,33 @@ function displayChoices(request, battleField, opponentActive, playerBoosts, play
 		}
 
 		// 显示状态异常
-		if (playerStatus) {
-			const statusNames = {
-				'slp': '睡眠',
-				'par': '麻痹',
-				'frz': '冰冻',
-				'brn': '灼伤',
-				'psn': '中毒',
-				'tox': '剧毒'
-			};
-			console.log(`   状态: ${statusNames[playerStatus] || playerStatus}`);
-		}
+	if (playerStatus) {
+		const statusCN = translate(playerStatus, 'status');
+		console.log(`   状态: ${statusCN}`);
+	}
 
-		// 显示能力等级变化
-		if (playerBoosts && Object.keys(playerBoosts).length > 0) {
-			const boosts = [];
-			const boostNames = {
-				'atk': '攻击',
-				'def': '防御',
-				'spa': '特攻',
-				'spd': '特防',
-				'spe': '速度',
-				'accuracy': '命中',
-				'evasion': '闪避'
-			};
-			for (const stat in playerBoosts) {
-				const boost = playerBoosts[stat];
-				// 只有非零的能力变化才显示
-				if (typeof boost === 'number' && boost !== 0) {
-					const statCN = boostNames[stat] || stat;
-					const sign = boost > 0 ? '+' : '';
-					boosts.push(`${statCN}${sign}${boost}`);
-				}
-			}
-			if (boosts.length > 0) {
-				console.log(`   能力变化: ${boosts.join(' ')}`);
+	// 显示能力等级变化
+	if (playerBoosts && Object.keys(playerBoosts).length > 0) {
+		const boosts = [];
+		for (const stat in playerBoosts) {
+			const boost = playerBoosts[stat];
+			// 只有非零的能力变化才显示
+			if (typeof boost === 'number' && boost !== 0) {
+				const statCN = translate(stat, 'boosts');
+				const sign = boost > 0 ? '+' : '';
+				boosts.push(`${statCN}${sign}${boost}`);
 			}
 		}
-
-		// 显示太晶化信息
-		if (active.canTerastallize) {
-			console.log(`   太晶属性: ${currentPokemon.teraType || '未知'}（可以太晶化！）`);
+		if (boosts.length > 0) {
+			console.log(`   能力变化: ${boosts.join(' ')}`);
 		}
+	}
+
+	// 显示太晶化信息
+	if (active.canTerastallize) {
+		const teraTypeCN = currentPokemon.teraType ? translate(currentPokemon.teraType, 'types') : '未知';
+		console.log(`   太晶属性: ${teraTypeCN}（可以太晶化！）`);
+	}
 
 		// 显示可用招式
 		console.log('可用招式:');
@@ -866,10 +678,11 @@ function displayChoices(request, battleField, opponentActive, playerBoosts, play
 				const ppInfo = move.pp !== undefined ? ` (PP: ${move.pp}/${move.maxpp})` : '';
 				let moveInfo = `   ${index + 1}.${moveCN}`;
 
-				// 添加属性
-				if (moveData.type) {
-					moveInfo += ` [${moveData.type}]`;
-				}
+			// 添加属性
+			if (moveData.type) {
+				const typeCN = translate(moveData.type, 'types');
+				moveInfo += ` [${typeCN}]`;
+			}
 
 				// 添加威力
 				if (moveData.basePower) {
@@ -932,35 +745,32 @@ function displayTeamInfo(team, trainerName) {
 	team.forEach((pokemon, index) => {
 		const speciesCN = translate(pokemon.species, 'pokemon');
 		const gender = pokemon.gender ? ` (${pokemon.gender})` : '';
-		logInfo = `\n[${index + 1}] ${speciesCN}${pokemon.name && pokemon.name !== pokemon.species ? ` (${pokemon.name})` : ''}${gender}`;
+		// 如果 name 不同于 species，翻译 name（可能包含括号格式）
+		const nameStr = pokemon.name && pokemon.name !== pokemon.species ? ` (${translate(pokemon.name, 'pokemon')})` : '';
+		logInfo = `\n[${index + 1}] ${speciesCN}${nameStr}${gender}`;
 
 		// 获取宝可梦数据
 		const speciesData = Sim.Dex.species.get(pokemon.species);
 
 		// 显示属性
 		if (speciesData.types) {
-			const types = speciesData.types.join('/');
-			logInfo += ` 属性:${types}`;
+			const typesCN = speciesData.types.map(t => translate(t, 'types')).join('/');
+			logInfo += ` 属性:${typesCN}`;
 		}
 
 		// 太晶属性（如果是第9代）
 		if (pokemon.teraType) {
-			logInfo += ` 太晶属性: ${pokemon.teraType}`;
+			const teraTypeCN = translate(pokemon.teraType, 'types');
+			logInfo += ` 太晶属性: ${teraTypeCN}`;
 		}
-		console.log(logInfo)
-
 		// 性格（优先显示）
 		if (pokemon.nature) {
 			const natureCN = translate(pokemon.nature, 'natures');
-			const effect = natureEffects[pokemon.nature];
-			let effectText = '';
-			if (effect && effect.plus && effect.minus) {
-				const plusCN = translate(effect.plus, 'stats');
-				const minusCN = translate(effect.minus, 'stats');
-				effectText = ` (+${plusCN} -${minusCN})`;
-			}
-			console.log(`    性格: ${natureCN}${effectText}`);
+			logInfo += ` 性格: ${natureCN}`;
 		}
+		console.log(logInfo)
+
+
 
 		// 特性
 		if (pokemon.ability) {
@@ -1002,7 +812,8 @@ function displayTeamInfo(team, trainerName) {
 
 				// 添加属性
 				if (moveData.type) {
-					moveInfo += ` [${moveData.type}]`;
+					const typeCN = translate(moveData.type, 'types');
+					moveInfo += ` [${typeCN}]`;
 				}
 
 				// 添加威力
@@ -1058,21 +869,28 @@ function displayBattleTeamStatus(request, playerStatus) {
 		logInfo = `【${index + 1}】${speciesCN}${isActive}${isFainted}`;
 		logInfo += ` HP:${poke.condition}`;
 
-		// 显示状态异常
-		const displayStatus = poke.active ? playerStatus : poke.status;
-		if (displayStatus) {
-			const statusNames = {
-				'slp': '睡眠',
-				'par': '麻痹',
-				'frz': '冰冻',
-				'brn': '灼伤',
-				'psn': '中毒',
-				'tox': '剧毒'
-			};
-			logInfo += ` 状态:${statusNames[displayStatus] || displayStatus}`;
-		}
+	// 显示状态异常
+	const displayStatus = poke.active ? playerStatus : poke.status;
+	if (displayStatus) {
+		const statusCN = translate(displayStatus, 'status');
+		logInfo += ` 状态:${statusCN}`;
+	}
 		console.log(logInfo);
 	});
+}
+
+// 提示输入的辅助函数
+function prompt(question) {
+	return new Promise((resolve) => {
+		rl.question(question, (answer) => {
+			resolve(answer.trim());
+		});
+	});
+}
+
+function translate(text, category = 'pokemon') {
+	if (!text) return text;
+	return translator.translate(String(text), category);
 }
 
 // 运行 PVE 对战

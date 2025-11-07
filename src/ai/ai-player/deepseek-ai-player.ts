@@ -41,9 +41,6 @@ export class DeepSeekAIPlayer extends AIPlayer {
 	private pseudoWeather: Set<string> = new Set();
 	private mySideConditions: Set<string> = new Set();
 	private opponentSideConditions: Set<string> = new Set();
-	
-	// 动态确定哪个是我方
-	private mySideId: string | null = null; // 'p1' 或 'p2'
 
     constructor(
         playerStream: any,
