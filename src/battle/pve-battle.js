@@ -121,43 +121,24 @@ async function startPVEBattle() {
 	// 显示你的队伍信息
 	displayTeamInfo(p1team, playerName);
 
-	// 在战斗开始前选择队伍顺序
-	console.log('\n请选择你的队伍首发顺序');
-	console.log('选择指令格式: team 数字序列  (按优先级顺序，首发在最前) (eg: team 312456)');
-	
 	let teamOrder = null;
+	const teamSize = p1team.length;
 	while (!teamOrder) {
-		const choice = await prompt('\n请输入指令: ');
-		if (choice && choice.toLowerCase().startsWith('team ')) {
-			const order = choice.substring(5).trim();
-			
-			// 验证队伍顺序格式
-			const teamSize = p1team.length;
-			if (order.length !== teamSize) {
-				console.log(`❌ 数字长度错误，应为 ${teamSize} 位（队伍有 ${teamSize} 只宝可梦）`);
-				continue;
-			}
-			
-			// 检查是否都是有效数字
-			const digits = order.split('').map(Number);
-			const hasInvalidDigit = digits.some(d => d < 1 || d > teamSize || isNaN(d));
+		const choice = await prompt('\n请选择你的队伍首发(1-6的数字): ');
+		if (choice) {	
+		// 检查是否是有效数字
+			const digit = parseInt(choice);
+			const hasInvalidDigit =  digit < 1 || digit > teamSize || isNaN(digit);
 			if (hasInvalidDigit) {
 				console.log(`❌ 数字必须在 1-${teamSize} 之间`);
 				continue;
 			}
 			
-			// 检查是否有重复数字
-			const uniqueDigits = new Set(digits);
-			if (uniqueDigits.size !== digits.length) {
-				console.log(`❌ 数字不能重复，每个位置只能出现一次`);
-				continue;
-			}
-			
-			// 验证通过
-			teamOrder = order;
-			console.log(`\n✓ 队伍顺序已设置: ${teamOrder}`);
+			// teamOrder让digits为第一个，剩下的数字在后面，例如 213456
+			teamOrder = [digit, ...Array.from({ length: teamSize }, (_, i) => i + 1).filter(n => n !== digit)].join('');
+			console.log(`\n✓ 首发已确定为${digit}号宝可梦`);
 		} else {
-			console.log('❌ 格式错误，请使用 "team 数字序列" 格式');
+			console.log('❌ ');
 		}
 	}
 
