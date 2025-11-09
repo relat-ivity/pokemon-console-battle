@@ -56,7 +56,7 @@ export class Translator {
           const translatedBase = map?.[baseName] || baseName;
           
           // 输出格式：中文基础名 (英文形态名)
-          return `${translatedBase} (${formName})`;
+          return `${translatedBase}(${formName})`;
         }
       }
       
@@ -75,7 +75,7 @@ export class Translator {
         
         // 如果基础名称有翻译，添加括号显示完整形态名
         if (translatedBase && translatedBase !== baseName) {
-          return `${translatedBase} (${text})`;
+          return `${translatedBase}(${text})`;
         }
       }
     }

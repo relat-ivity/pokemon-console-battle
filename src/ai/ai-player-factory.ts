@@ -66,8 +66,6 @@ export class AIPlayerFactory {
 		}
 		
 		try {
-			console.log(`✓ 使用 ${config.name}`);
-			
 			let ai: AIPlayer;
 			switch (type) {
 				case 'smart_ai':
