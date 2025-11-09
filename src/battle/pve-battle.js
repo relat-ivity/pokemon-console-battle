@@ -676,8 +676,8 @@ function displayChoices(request, battleField, opponentActive, playerBoosts, play
 			speciesLog = `对手出战: ${oppSpeciesCN}`
 			// 显示属性
 			if (oppSpeciesData.types) {
-				const types = oppSpeciesData.types.join('/');
-				speciesLog += ` 属性:${types}`;
+				const typesCN = oppSpeciesData.types.map(t => translate(t, 'types')).join('/');
+				speciesLog += ` 属性:${typesCN}`;
 			}
 
 			speciesLog += ` HP(%):${opponentActive.condition || '未知'}`;
@@ -716,8 +716,8 @@ function displayChoices(request, battleField, opponentActive, playerBoosts, play
 
 		// 显示属性
 		if (speciesData.types) {
-			const types = speciesData.types.join('/');
-			speciesLog += ` 属性:${types}`;
+			const typesCN = speciesData.types.map(t => translate(t, 'types')).join('/');
+			speciesLog += ` 属性:${typesCN}`;
 		}
 		speciesLog += ` HP:${currentPokemon.condition}`;
 		console.log(speciesLog);
@@ -838,10 +838,10 @@ function displaySwitchChoices(request) {
 
 // 获取玩家选择
 async function getPlayerChoice() {
-	let choice = await prompt('Your choice: ');
+	let choice = await prompt('你的选择: ');
 	while (!choice) {
 		console.log('❌ 输入不能为空');
-		choice = await prompt('Your choice: ');
+		choice = await prompt('你的选择: ');
 	}
 	return choice;
 }
