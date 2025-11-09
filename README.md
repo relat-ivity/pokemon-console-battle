@@ -1,7 +1,9 @@
 
 # Pokémon Text Battle
-   
-可以以**文本形式**和AI进行宝可梦第九代ou宝可梦六六单打对战。双方的宝可梦随机分配，各项努力值为85，性格为勤奋
+
+可以以**文本形式**和AI进行宝可梦第九代宝可梦对战（gen9ou规则），双方的宝可梦随机分配。
+
+Version：0.1.0
 
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -18,7 +20,6 @@
 
 ### 前置要求
 - Node.js >= 18.0.0
-- npm 或 yarn
 
 ### 安装步骤
 
@@ -38,6 +39,9 @@ npm run build
 
 ```bash
 node src/battle/pve-battle.js
+
+# 或者
+npm start
 ```
 
 ## 📖 使用说明
