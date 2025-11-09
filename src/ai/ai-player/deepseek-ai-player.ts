@@ -34,6 +34,9 @@ export class DeepSeekAIPlayer extends AIPlayer {
 	private lastRequest: SwitchRequest | TeamPreviewRequest | MoveRequest | null = null;
 	private opponentTeam: { [name: string]: OpponentPokemon } = {};
 	private opponentTeamData: any[] | null = null;
+
+	// debug设置
+	private debugmode: boolean = false;
 	
 	// 场地状态跟踪
 	private weather: string | null = null;
@@ -538,6 +541,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 	 */
 	private async chooseTeamPreviewWithAI(request: TeamPreviewRequest): Promise<string | null> {
 		if (!this.lastRequest) return null;
+		console.log('\n等待DeepSeek选择首发宝可梦...');
 
 		try {
 			const battleState = this.buildBattleState(request, true);
@@ -548,14 +552,13 @@ export class DeepSeekAIPlayer extends AIPlayer {
 				2. 考虑速度优势
 				3. 考虑特性和道具的配合
 				4. 平衡队伍的攻守
-				请只回答 team 后面跟6个数字的顺序，如：team 123456`;
+				请只回答 team 后面跟6个数字的顺序，如：team 123456。不许返回空值，也不要返回任何解释`;
 
 			const aiResponse = await this.callDeepSeek(prompt, systemPrompt);
-
 			if (aiResponse) {
-				const match = aiResponse.match(/team\s*(\d{1,6})/i);
-				if (match) {
-					return `team ${match[1]}`;
+				const parsed = this.parseAIResponse(aiResponse);
+				if (parsed && parsed.type === 'team' && parsed.team) {
+					return `team ${parsed.team}`;
 				}
 			}
 		} catch (error) {
@@ -942,6 +945,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 	 * 调用 DeepSeek API
 	 */
 	private async callDeepSeek(prompt: string, systemPrompt: string): Promise<string | null> {
+		if(this.debugmode) console.log('CallDeepSeek: ', prompt, systemPrompt);
 		if (!this.apiKey) {
 			return null;
 		}
@@ -986,7 +990,8 @@ export class DeepSeekAIPlayer extends AIPlayer {
 	/**
 	 * 解析 AI 响应
 	 */
-	private parseAIResponse(response: string): { type: string; index: number; terastallize?: boolean } | null {
+	private parseAIResponse(response: string): { type: string; index: number; terastallize?: boolean; team?: string } | null {
+		if(this.debugmode) console.log('ParseAIResponse: ', response);
 		if (!response) return null;
 
 		const moveMatch = response.match(/move\s+(\d+)(\s+terastallize)?/i);
@@ -1003,6 +1008,15 @@ export class DeepSeekAIPlayer extends AIPlayer {
 			return {
 				type: 'switch',
 				index: parseInt(switchMatch[1]) - 1
+			};
+		}
+
+		const teamMatch = response.match(/team\s*(\d{1,6})/i);
+		if (teamMatch) {
+			return {
+				type: 'team',
+				index: 0,
+				team: teamMatch[1]
 			};
 		}
 
