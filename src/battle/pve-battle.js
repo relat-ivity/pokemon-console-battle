@@ -188,7 +188,8 @@ async function startPVEBattle() {
 
 	// 追踪对手当前宝可梦
 	let opponentActive = {
-		species: null,
+		species: null, // species 基础名称（如 "Indeedee"），用于太晶化比较
+		name: null, // name 完整名称（如 "Indeedee-F (Indeedee)"），用于显示
 		condition: null,
 		status: null,
 		boosts: {} // 追踪对手的能力变化
@@ -281,29 +282,32 @@ async function startPVEBattle() {
 									displaySwitchChoices(currentRequest);
 									handlePlayerChoice();
 									currentRequest = null; // 清空，避免重复处理
-							} else if (currentRequest.active) {
-								displayChoices(currentRequest, battleField, opponentActive, playerBoosts, playerStatus, opponentTerastallizedPokemon, opponentTeraType, playerTerastallizedPokemon, playerTeraType);
-								handlePlayerChoice();
+								} else if (currentRequest.active) {
+									displayChoices(currentRequest, battleField, opponentActive, playerBoosts, playerStatus, opponentTerastallizedPokemon, opponentTeraType, playerTerastallizedPokemon, playerTeraType);
+									handlePlayerChoice();
 									lastRequest = currentRequest;
 									currentRequest = null; // 清空，避免重复处理
 								}
 							}
 						} else if (line.startsWith('|switch|')) {
 							const parts = line.split('|');
-							const playerTag = parts[2];
-							const pokemon = parts[3];
+							const playerTag = parts[2]; // "p2a: Indeedee"
+							const details = parts[3]; // "Indeedee-F, L50, F"
 							const hp = parts[4] || '';
 							const isPlayer = playerTag.startsWith('p1');
 							const player = isPlayer ? '【你】' : '【对手】';
-							const pokemonName = pokemon.split(',')[0];
-							const pokemonCN = translate(pokemonName, 'pokemon');
-							console.log(`\n${player} 派出了 ${pokemonCN} ${hp ? '(HP: ' + hp + ')' : ''}`);
+							// 从 playerTag 提取 species（基础名称，用于太晶化比较）
+							const species = playerTag.split(': ')[1]; // "Indeedee"
+							// 从 details 提取 name（完整名称，用于显示）
+							const name = details.split(',')[0]; // "Indeedee-F"
+							const nameCN = translate(name, 'pokemon');
+							console.log(`\n${player} 派出了 ${nameCN} ${hp ? '(HP: ' + hp + ')' : ''}`);
 
 							// 更新宝可梦信息
 							if (isPlayer) {
 								// 玩家切换宝可梦，重置能力变化和状态
 								playerBoosts = {};
-								// 太晶化状态不重置，保留在 playerTerastallizedPokemon Map 中
+								// 太晶化状态不重置
 								// 从HP字符串中提取状态
 								if (hp && hp.includes(' ')) {
 									const hpParts = hp.split(' ');
@@ -315,12 +319,17 @@ async function startPVEBattle() {
 								} else {
 									playerStatus = null;
 								}
+								if (debug_mode) {
+									console.log(`[Debug] 玩家切换: name='${name}', species='${species}'`);
+								}
 							} else {
 								// 更新对手宝可梦信息
-								opponentActive.species = pokemonName;
+								opponentActive.species = species; // species "Indeedee"（用于太晶化比较）
+								opponentActive.name = name; // name "Indeedee-F"（用于显示）
 								opponentActive.condition = hp;
-								opponentActive.status = null; // 重置状态
-								opponentActive.boosts = {}; // 重置能力变化
+								opponentActive.status = null;
+								opponentActive.boosts = {};
+								if (debug_mode) console.log(`[Debug] 对手切换: name='${name}', species='${species}', hp='${hp}'`);
 							}
 						} else if (line.startsWith('|move|')) {
 							const parts = line.split('|');
@@ -435,22 +444,25 @@ async function startPVEBattle() {
 							console.log('  → 攻击没有命中!');
 						} else if (line.startsWith('|-terastallize|')) {
 							const parts = line.split('|');
-							const pokemon = parts[2];
+							const pokemon = parts[2]; // "p2a: Indeedee"
 							const teraType = parts[3];
 							const isPlayer = pokemon.startsWith('p1');
 							const player = isPlayer ? '【你】' : '【对手】';
-							const pokemonName = pokemon.split(': ')[1];
-							const pokemonCN = translate(pokemonName, 'pokemon');
+							const species = pokemon.split(': ')[1]; // "Indeedee" (species)
+							const speciesCN = translate(species, 'pokemon');
 							const teraTypeCN = translate(teraType, 'types');
-							console.log(`\n${player} ${pokemonCN} 太晶化了! 属性变为: ${teraTypeCN}`);
+							console.log(`\n${player} ${speciesCN} 太晶化了! 属性变为: ${teraTypeCN}`);
 
 							// 记录太晶化状态（一支队伍只能太晶化一只宝可梦）
+							// 直接保存 species
 							if (isPlayer) {
-								playerTerastallizedPokemon = pokemonName;
+								playerTerastallizedPokemon = species;
 								playerTeraType = teraType;
+								if (debug_mode) console.log(`[Debug] 玩家太晶化: species='${species}'`);
 							} else {
-								opponentTerastallizedPokemon = pokemonName;
+								opponentTerastallizedPokemon = species;
 								opponentTeraType = teraType;
+								if (debug_mode) console.log(`[Debug] 对手太晶化: species='${species}'`);
 							}
 						} else if (line.startsWith('|-boost|')) {
 							const parts = line.split('|');
@@ -688,8 +700,9 @@ function displayChoices(request, battleField, opponentActive, playerBoosts, play
 
 		// 显示对手宝可梦状态
 		if (opponentActive.species) {
-			const oppSpeciesData = Sim.Dex.species.get(opponentActive.species);
-			const oppSpeciesCN = translate(opponentActive.species, 'pokemon');
+			// 使用 name 获取数据和显示，使用 species 比较太晶化
+			const oppSpeciesData = Sim.Dex.species.get(opponentActive.name || opponentActive.species);
+			const oppSpeciesCN = translate(opponentActive.name || opponentActive.species, 'pokemon');
 			speciesLog = `对手出战: ${oppSpeciesCN}`
 			// 显示属性
 			if (oppSpeciesData.types) {
@@ -699,7 +712,10 @@ function displayChoices(request, battleField, opponentActive, playerBoosts, play
 
 			speciesLog += ` HP(%):${opponentActive.condition || '未知'}`;
 
-			// 显示太晶化状态（检查是否是太晶化的那只宝可梦）
+			// 显示太晶化状态（使用 species 比较）
+			if (debug_mode) {
+				console.log(`[Debug] 检查太晶: opponentTerastallizedPokemon='${opponentTerastallizedPokemon}', opponentActive.species='${opponentActive.species}'`);
+			}
 			if (opponentTerastallizedPokemon === opponentActive.species) {
 				const teraTypeCN = translate(opponentTeraType, 'types');
 				speciesLog += ` [已太晶化:${teraTypeCN}]`;
@@ -730,25 +746,29 @@ function displayChoices(request, battleField, opponentActive, playerBoosts, play
 			}
 		}
 
-		// 显示当前宝可梦
-		const currentPokemon = pokemon[0];
-		const speciesName = currentPokemon.ident.split(': ')[1];
-		const speciesData = Sim.Dex.species.get(speciesName);
-		const speciesCN = translate(speciesName, 'pokemon');
-		speciesLog = `当前出战: ${speciesCN}`
+	// 显示当前宝可梦
+	const currentPokemon = pokemon[0];
+	// ident 中是 species（基础名称），details 中有完整的形态信息
+	const species = currentPokemon.ident.split(': ')[1];
+	// details 格式如 "Slowking-Galar, L50, M"，提取 name
+	const name = currentPokemon.details ? currentPokemon.details.split(',')[0] : species;
+	const speciesData = Sim.Dex.species.get(name);
+	const nameCN = translate(name, 'pokemon');
+	speciesLog = `当前出战: ${nameCN}`
 
 		// 显示属性
 		if (speciesData.types) {
 			const typesCN = speciesData.types.map(t => translate(t, 'types')).join('/');
 			speciesLog += ` 属性:${typesCN}`;
 		}
-		speciesLog += ` HP:${currentPokemon.condition}`;
-
-		// 显示太晶化状态（检查是否是太晶化的那只宝可梦）
-		if (playerTerastallizedPokemon === speciesName) {
-			const teraTypeCN = translate(playerTeraType, 'types');
-			speciesLog += ` [已太晶化:${teraTypeCN}]`;
-		}
+	speciesLog += ` HP:${currentPokemon.condition}`;
+	
+	// 显示太晶化状态（使用 species 比较）
+	// species 已经从 ident 中提取了，是基础名称
+	if (playerTerastallizedPokemon === species) {
+		const teraTypeCN = translate(playerTeraType, 'types');
+		speciesLog += ` [已太晶化:${teraTypeCN}]`;
+	}
 
 		console.log(speciesLog);
 
@@ -1013,17 +1033,20 @@ function displayBattleTeamStatus(request, playerStatus, p2team, opponentFaintedP
 	const pokemon = request.side.pokemon;
 
 	pokemon.forEach((poke, index) => {
-		const speciesName = poke.ident.split(': ')[1];
-		const speciesData = Sim.Dex.species.get(speciesName);
-		const speciesCN = translate(speciesName, 'pokemon');
+		// ident 中是 species（基础名称），details 中有完整的形态信息
+		const species = poke.ident.split(': ')[1];
+		const name = poke.details ? poke.details.split(',')[0] : species;
+		const speciesData = Sim.Dex.species.get(name);
+		const nameCN = translate(name, 'pokemon');
 		const isActive = poke.active ? ' [出战中]' : '';
 		const isFainted = poke.condition.endsWith(' fnt') ? ' [已昏厥]' : '';
 
-		logInfo = `[${index + 1}] ${speciesCN}${isActive}${isFainted}`;
+		logInfo = `[${index + 1}] ${nameCN}${isActive}${isFainted}`;
 		logInfo += ` HP:${poke.condition}`;
 
-		// 显示太晶化状态（检查是否是太晶化的那只宝可梦）
-		if (playerTerastallizedPokemon === speciesName) {
+		// 显示太晶化状态（使用 species 比较）
+		// species 已经从 ident 中提取了，是基础名称
+		if (playerTerastallizedPokemon === species) {
 			const teraTypeCN = translate(playerTeraType, 'types');
 			logInfo += ` [已太晶化:${teraTypeCN}]`;
 		}
