@@ -1,9 +1,9 @@
 
 # Pokémon Text Battle
 
-可以以**文本形式**和AI进行宝可梦第九代宝可梦对战（gen9ou规则），双方的宝可梦随机分配。
+可以以**文本形式**和AI进行宝可梦第九代宝可梦随机对战（gen9randombattle规则）。
 
-Version：0.1.0
+Version：0.2.0
 
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -15,6 +15,12 @@ Version：0.1.0
 - 🌏 **中文支持**：完整的中文翻译，支持招式、宝可梦、特性、道具等
 - 📊 **详细战况**：实时显示HP、能力变化、场地效果、天气等信息
 - ⚡ **易于使用**：简单的命令行交互，新手友好
+  
+## 💻 规则
+
+- 宝可梦随机分配
+- 所有宝可梦等级50级，性格：勤奋，个体值(IV)每项31，努力值(EV)每项85
+- *添加选择首发环节
 
 ## 📦 安装
 
