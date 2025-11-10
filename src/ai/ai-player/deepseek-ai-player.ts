@@ -7,10 +7,10 @@ import { AIPlayer } from '../ai-player';
 import { Dex } from 'pokemon-showdown/dist/sim/dex';
 import { Translator } from '../../support/translator';
 import axios from 'axios';
-import type { 
-    SwitchRequest,
-    TeamPreviewRequest,
-    MoveRequest
+import type {
+	SwitchRequest,
+	TeamPreviewRequest,
+	MoveRequest
 } from 'pokemon-showdown/dist/sim/side';
 
 interface AnyObject { [k: string]: any }
@@ -24,6 +24,8 @@ interface OpponentPokemon {
 	ability?: string;
 	item?: string;
 	status?: string;
+	terastallized?: boolean; // 是否已太晶化
+	teraType?: string; // 太晶化属性
 }
 
 export class DeepSeekAIPlayer extends AIPlayer {
@@ -37,7 +39,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 
 	// debug设置
 	private debugmode: boolean = false;
-	
+
 	// 场地状态跟踪
 	private weather: string | null = null;
 	private terrain: string | null = null;
@@ -45,23 +47,27 @@ export class DeepSeekAIPlayer extends AIPlayer {
 	private mySideConditions: Set<string> = new Set();
 	private opponentSideConditions: Set<string> = new Set();
 
-    constructor(
-        playerStream: any,
+	// 太晶化状态跟踪 - 一支队伍只能太晶化一只宝可梦
+	private myTerastallizedPokemon: string | null = null; // 我方太晶化的宝可梦名称
+	private myTeraType: string | null = null; // 我方太晶化的属性
+
+	constructor(
+		playerStream: any,
 		opponentTeamData: any[] | null = null,
-        debug = false
-    ) {
-        super(playerStream, debug);
+		debug = false
+	) {
+		super(playerStream, debug);
 		this.apiKey = process.env.DEEPSEEK_API_KEY || '';
 		this.translator = Translator.getInstance();
 		this.opponentTeamData = opponentTeamData;
-    }
+	}
 
 	/**
 	 * 重写接收消息方法，监听战斗消息流以跟踪场地状态
 	 */
 	override receive(message: string): void {
 		super.receive(message);
-		
+
 		// 解析消息流，更新场地状态
 		const lines = message.split('\n');
 		for (const line of lines) {
@@ -79,92 +85,92 @@ export class DeepSeekAIPlayer extends AIPlayer {
 
 		const cmd = parts[0];
 
-	// ========== 场地状态 ==========
-	
-	// 天气相关
-	if (cmd === '-weather') {
-		// |-weather|RainDance 或 |-weather|none
-		const weather = parts[1];
-		this.weather = (weather === 'none' || !weather) ? null : weather;
-	}
+		// ========== 场地状态 ==========
 
-	// 场地条件开始（包括场地和全场效果）
-	else if (cmd === '-fieldstart') {
-		// |-fieldstart|move: Electric Terrain
-		// |-fieldstart|move: Trick Room
-		const condition = parts[1];
-		if (condition) {
-			const effectName = condition.startsWith('move: ') ? condition.substring(6) : condition;
-			
-			// 判断是场地还是全场效果
-			const terrainNames = ['Electric Terrain', 'Grassy Terrain', 'Misty Terrain', 'Psychic Terrain'];
-			if (terrainNames.includes(effectName)) {
-				this.terrain = effectName;
-			} else {
-				this.pseudoWeather.add(effectName);
+		// 天气相关
+		if (cmd === '-weather') {
+			// |-weather|RainDance 或 |-weather|none
+			const weather = parts[1];
+			this.weather = (weather === 'none' || !weather) ? null : weather;
+		}
+
+		// 场地条件开始（包括场地和全场效果）
+		else if (cmd === '-fieldstart') {
+			// |-fieldstart|move: Electric Terrain
+			// |-fieldstart|move: Trick Room
+			const condition = parts[1];
+			if (condition) {
+				const effectName = condition.startsWith('move: ') ? condition.substring(6) : condition;
+
+				// 判断是场地还是全场效果
+				const terrainNames = ['Electric Terrain', 'Grassy Terrain', 'Misty Terrain', 'Psychic Terrain'];
+				if (terrainNames.includes(effectName)) {
+					this.terrain = effectName;
+				} else {
+					this.pseudoWeather.add(effectName);
+				}
 			}
 		}
-	}
 
-	// 场地条件结束
-	else if (cmd === '-fieldend') {
-		// |-fieldend|move: Electric Terrain
-		// |-fieldend|move: Trick Room
-		const condition = parts[1];
-		if (condition) {
-			const effectName = condition.startsWith('move: ') ? condition.substring(6) : condition;
-			
-			const terrainNames = ['Electric Terrain', 'Grassy Terrain', 'Misty Terrain', 'Psychic Terrain'];
-			if (terrainNames.includes(effectName)) {
-				this.terrain = null;
-			} else {
-				this.pseudoWeather.delete(effectName);
+		// 场地条件结束
+		else if (cmd === '-fieldend') {
+			// |-fieldend|move: Electric Terrain
+			// |-fieldend|move: Trick Room
+			const condition = parts[1];
+			if (condition) {
+				const effectName = condition.startsWith('move: ') ? condition.substring(6) : condition;
+
+				const terrainNames = ['Electric Terrain', 'Grassy Terrain', 'Misty Terrain', 'Psychic Terrain'];
+				if (terrainNames.includes(effectName)) {
+					this.terrain = null;
+				} else {
+					this.pseudoWeather.delete(effectName);
+				}
 			}
 		}
-	}
 
-	// 场地效果开始
-	else if (cmd === '-sidestart') {
-		// |-sidestart|SIDE|CONDITION
-		// 例如: |-sidestart|p1|move: Stealth Rock
-		// 例如: |-sidestart|p2|Spikes
-		const side = parts[1];
-		const condition = parts[2];
-		
-		if (condition) {
-			// 移除 'move: ' 前缀（如果有的话）
-			const conditionName = condition.startsWith('move: ') ? condition.substring(6) : condition;
-			
-			if (side === 'p2') {
-				this.mySideConditions.add(conditionName);
-			} else if (side === 'p1') {
-				this.opponentSideConditions.add(conditionName);
+		// 场地效果开始
+		else if (cmd === '-sidestart') {
+			// |-sidestart|SIDE|CONDITION
+			// 例如: |-sidestart|p1|move: Stealth Rock
+			// 例如: |-sidestart|p2|Spikes
+			const side = parts[1];
+			const condition = parts[2];
+
+			if (condition) {
+				// 移除 'move: ' 前缀（如果有的话）
+				const conditionName = condition.startsWith('move: ') ? condition.substring(6) : condition;
+
+				if (side === 'p2') {
+					this.mySideConditions.add(conditionName);
+				} else if (side === 'p1') {
+					this.opponentSideConditions.add(conditionName);
+				}
 			}
 		}
-	}
 
-	// 场地效果结束
-	else if (cmd === '-sideend') {
-		// |-sideend|SIDE|CONDITION
-		// 例如: |-sideend|p2|move: Light Screen
-		// 例如: |-sideend|p1|Reflect
-		const side = parts[1];
-		const condition = parts[2];
-		
-		if (condition) {
-			// 移除 'move: ' 前缀（如果有的话）
-			const conditionName = condition.startsWith('move: ') ? condition.substring(6) : condition;
-			
-			if (side === 'p2') {
-				this.mySideConditions.delete(conditionName);
-			} else if (side === 'p1') {
-				this.opponentSideConditions.delete(conditionName);
+		// 场地效果结束
+		else if (cmd === '-sideend') {
+			// |-sideend|SIDE|CONDITION
+			// 例如: |-sideend|p2|move: Light Screen
+			// 例如: |-sideend|p1|Reflect
+			const side = parts[1];
+			const condition = parts[2];
+
+			if (condition) {
+				// 移除 'move: ' 前缀（如果有的话）
+				const conditionName = condition.startsWith('move: ') ? condition.substring(6) : condition;
+
+				if (side === 'p2') {
+					this.mySideConditions.delete(conditionName);
+				} else if (side === 'p1') {
+					this.opponentSideConditions.delete(conditionName);
+				}
 			}
 		}
-	}
 
 		// ========== 对手宝可梦追踪（p1）==========
-		
+
 		// 对手宝可梦出战
 		else if (cmd === 'switch' || cmd === 'drag') {
 			// |switch|p1a: Pikachu|Pikachu, L50, M|100/100
@@ -172,12 +178,12 @@ export class DeepSeekAIPlayer extends AIPlayer {
 			if (ident && ident.startsWith('p1')) {
 				const speciesName = ident.split(': ')[1];
 				const condition = parts[3] || '100/100';
-				
+
 				// 标记所有对手宝可梦为非出战
 				Object.keys(this.opponentTeam).forEach(key => {
 					this.opponentTeam[key].active = false;
 				});
-				
+
 				// 更新当前出战的宝可梦
 				if (!this.opponentTeam[speciesName]) {
 					this.opponentTeam[speciesName] = {
@@ -228,12 +234,12 @@ export class DeepSeekAIPlayer extends AIPlayer {
 				const speciesName = ident.split(': ')[1];
 				const stat = parts[2];
 				const amount = parseInt(parts[3] || '1');
-				
+
 				if (this.opponentTeam[speciesName]) {
 					if (!this.opponentTeam[speciesName].boosts) {
 						this.opponentTeam[speciesName].boosts = {};
 					}
-					this.opponentTeam[speciesName].boosts![stat] = 
+					this.opponentTeam[speciesName].boosts![stat] =
 						(this.opponentTeam[speciesName].boosts![stat] || 0) + amount;
 				}
 			}
@@ -247,12 +253,12 @@ export class DeepSeekAIPlayer extends AIPlayer {
 				const speciesName = ident.split(': ')[1];
 				const stat = parts[2];
 				const amount = parseInt(parts[3] || '1');
-				
+
 				if (this.opponentTeam[speciesName]) {
 					if (!this.opponentTeam[speciesName].boosts) {
 						this.opponentTeam[speciesName].boosts = {};
 					}
-					this.opponentTeam[speciesName].boosts![stat] = 
+					this.opponentTeam[speciesName].boosts![stat] =
 						(this.opponentTeam[speciesName].boosts![stat] || 0) - amount;
 				}
 			}
@@ -264,7 +270,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 			const ident = parts[1];
 			if (ident && ident.startsWith('p1')) {
 				const speciesName = ident.split(': ')[1];
-				
+
 				if (this.opponentTeam[speciesName]) {
 					this.opponentTeam[speciesName].boosts = {};
 				}
@@ -278,7 +284,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 			if (ident && ident.startsWith('p1')) {
 				const speciesName = ident.split(': ')[1];
 				const status = parts[2];
-				
+
 				if (this.opponentTeam[speciesName]) {
 					this.opponentTeam[speciesName].status = status;
 				}
@@ -291,15 +297,39 @@ export class DeepSeekAIPlayer extends AIPlayer {
 			const ident = parts[1];
 			if (ident && ident.startsWith('p1')) {
 				const speciesName = ident.split(': ')[1];
-				
+
 				if (this.opponentTeam[speciesName]) {
 					this.opponentTeam[speciesName].status = undefined;
 				}
 			}
 		}
+
+		// 太晶化
+		else if (cmd === '-terastallize') {
+			// |-terastallize|p1a: Pikachu|Electric
+			// |-terastallize|p2a: Garchomp|Ground
+			const ident = parts[1];
+			const teraType = parts[2];
+
+			if (ident && teraType) {
+				const speciesName = ident.split(': ')[1];
+
+				if (ident.startsWith('p1')) {
+					// 对手太晶化
+					if (this.opponentTeam[speciesName]) {
+						this.opponentTeam[speciesName].terastallized = true;
+						this.opponentTeam[speciesName].teraType = teraType;
+					}
+				} else if (ident.startsWith('p2')) {
+					// 我方太晶化 (AI是p2)
+					this.myTerastallizedPokemon = speciesName;
+					this.myTeraType = teraType;
+				}
+			}
+		}
 	}
 
-    /**
+	/**
 	 * 处理强制切换（宝可梦倒下时）
 	 */
 	protected override handleForceSwitchRequest(request: SwitchRequest): void {
@@ -309,7 +339,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 			this.choose('default');
 		});
 	}
-	
+
 	/**
 	 * 处理队伍预览
 	 */
@@ -320,7 +350,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 			this.choose('default');
 		});
 	}
-	
+
 	/**
 	 * 处理正常回合
 	 */
@@ -357,7 +387,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 	private async handleForceSwitchAsync(request: SwitchRequest): Promise<void> {
 		const pokemon = request.side.pokemon;
 		const chosen: number[] = [];
-		
+
 		const choicePromises = request.forceSwitch.map(async (mustSwitch, i) => {
 			if (!mustSwitch) return 'pass';
 
@@ -471,7 +501,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 		const choices = await Promise.all(choicePromises);
 		this.choose(choices.join(', '));
 	}
-	
+
 	/**
 	 * 使用AI选择切换的宝可梦
 	 */
@@ -490,13 +520,13 @@ export class DeepSeekAIPlayer extends AIPlayer {
 		try {
 			const battleState = this.buildBattleState(request);
 			let actions = '可切换的宝可梦:\n';
-			
+
 			switches.forEach((s) => {
 				const speciesName = s.pokemon.ident.split(': ')[1];
 				const speciesCN = this.translate(speciesName, 'pokemon');
 				const speciesData = Dex.species.get(speciesName);
 				const condition = s.pokemon.condition || '未知';
-				
+
 				actions += `  ${s.slot}. ${speciesCN}`;
 				if (speciesData.types) {
 					const typesCN = speciesData.types.map((t: string) => this.translate(t, 'types'));
@@ -506,18 +536,18 @@ export class DeepSeekAIPlayer extends AIPlayer {
 				if (s.pokemon.status) actions += ` [${s.pokemon.status}]`;
 				actions += '\n';
 			});
-			
+
 			const prompt = `${battleState}\n\n${actions}\n\n你的宝可梦倒下了，请选择下一个出战的宝可梦。考虑属性克制、HP状况、特性和场上局势。只输出指令，不要解释。格式：switch X（X为宝可梦编号）`;
-			
+
 			const systemPrompt = `你是一个宝可梦对战专家。根据当前战况，选择胜率最高的宝可梦出战。考虑：
 				1. 我方队伍的配合状态
 				2. HP状况和异常状态，以及属性克制
 				3. 特性和道具配合
 				4. 场上局势和对手状态
 				请只回答 switch X 格式，X为宝可梦编号`;
-			
+
 			const aiResponse = await this.callDeepSeek(prompt, systemPrompt);
-			
+
 			if (aiResponse) {
 				const parsed = this.parseAIResponse(aiResponse);
 				if (parsed && parsed.type === 'switch') {
@@ -527,7 +557,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 					}
 				}
 			}
-			
+
 			console.error('❌ AI返回无效切换指令');
 			throw new Error('AI返回无效切换指令');
 		} catch (error) {
@@ -626,10 +656,13 @@ export class DeepSeekAIPlayer extends AIPlayer {
 				});
 			}
 
-			let extraInfo = '';
-			if (active.canTerastallize && canTerastallize) {
-				extraInfo += '\n提示: 可以在使用招式时同时太晶化（例如：move 1 terastallize）\n';
-			}
+		let extraInfo = '';
+		if (active.canTerastallize && canTerastallize && this.myTerastallizedPokemon === null) {
+			extraInfo += '\n提示: 可以在使用招式时同时太晶化（例如：move 1 terastallize）\n';
+		} else if (this.myTerastallizedPokemon !== null) {
+			const terastallizedCN = this.translate(this.myTerastallizedPokemon, 'pokemon');
+			extraInfo += `\n注意: 队伍已有宝可梦太晶化（${terastallizedCN}），无法再次太晶化\n`;
+		}
 
 			const prompt = `${battleState}${extraInfo}\n\n${actions}\n\n请分析当前战况，选择最佳行动。只输出指令，不要解释。指令格式：move X（使用第X个招式）、move X terastallize（使用第X个招式并太晶化）、switch X（切换到第X个宝可梦）`;
 
@@ -649,12 +682,13 @@ export class DeepSeekAIPlayer extends AIPlayer {
 			if (aiResponse) {
 				const parsed = this.parseAIResponse(aiResponse);
 
-				if (parsed && parsed.type === 'move' && moves[parsed.index]) {
-					let choice = moves[parsed.index].choice;
-					if (parsed.terastallize && active.canTerastallize && canTerastallize) {
-						choice += ' terastallize';
-					}
-					return choice;
+			if (parsed && parsed.type === 'move' && moves[parsed.index]) {
+				let choice = moves[parsed.index].choice;
+				// 只有在队伍还没有太晶化宝可梦时才能太晶化
+				if (parsed.terastallize && active.canTerastallize && canTerastallize && this.myTerastallizedPokemon === null) {
+					choice += ' terastallize';
+				}
+				return choice;
 				}
 
 				if (parsed && parsed.type === 'switch') {
@@ -700,44 +734,44 @@ export class DeepSeekAIPlayer extends AIPlayer {
 			return state + '（无法获取战场信息）\n';
 		}
 
-	// 场地信息（仅战斗中显示）
-	if (!isTeamPreview) {
-		let fieldInfo = '';
-		
-		// 天气信息
-		if (this.weather) {
-			const weatherCN = this.translate(this.weather, 'weathers');
-			fieldInfo += `   天气: ${weatherCN}\n`;
+		// 场地信息（仅战斗中显示）
+		if (!isTeamPreview) {
+			let fieldInfo = '';
+
+			// 天气信息
+			if (this.weather) {
+				const weatherCN = this.translate(this.weather, 'weathers');
+				fieldInfo += `   天气: ${weatherCN}\n`;
+			}
+
+			// 场地信息
+			if (this.terrain) {
+				const terrainCN = this.translate(this.terrain, 'terrains');
+				fieldInfo += `   场地: ${terrainCN}\n`;
+			}
+
+			// 全场效果（伪天气）
+			if (this.pseudoWeather.size > 0) {
+				const effects = Array.from(this.pseudoWeather).map(e => this.translate(e, 'moves')).join(', ');
+				fieldInfo += `   全场效果: ${effects}\n`;
+			}
+
+			// 我方场地效果
+			if (this.mySideConditions.size > 0) {
+				const effects = Array.from(this.mySideConditions).map(e => this.translate(e, 'moves')).join(', ');
+				fieldInfo += `   我方场地: ${effects}\n`;
+			}
+
+			// 对手场地效果
+			if (this.opponentSideConditions.size > 0) {
+				const effects = Array.from(this.opponentSideConditions).map(e => this.translate(e, 'moves')).join(', ');
+				fieldInfo += `   对手场地: ${effects}\n`;
+			}
+
+			if (fieldInfo) {
+				state += '【场地状态】\n' + fieldInfo + '\n';
+			}
 		}
-		
-		// 场地信息
-		if (this.terrain) {
-			const terrainCN = this.translate(this.terrain, 'terrains');
-			fieldInfo += `   场地: ${terrainCN}\n`;
-		}
-		
-		// 全场效果（伪天气）
-		if (this.pseudoWeather.size > 0) {
-			const effects = Array.from(this.pseudoWeather).map(e => this.translate(e, 'moves')).join(', ');
-			fieldInfo += `   全场效果: ${effects}\n`;
-		}
-		
-		// 我方场地效果
-		if (this.mySideConditions.size > 0) {
-			const effects = Array.from(this.mySideConditions).map(e => this.translate(e, 'moves')).join(', ');
-			fieldInfo += `   我方场地: ${effects}\n`;
-		}
-		
-		// 对手场地效果
-		if (this.opponentSideConditions.size > 0) {
-			const effects = Array.from(this.opponentSideConditions).map(e => this.translate(e, 'moves')).join(', ');
-			fieldInfo += `   对手场地: ${effects}\n`;
-		}
-		
-		if (fieldInfo) {
-			state += '【场地状态】\n' + fieldInfo + '\n';
-		}
-	}
 
 		// 我方队伍信息
 		state += '【我方队伍】\n';
@@ -747,7 +781,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 			const speciesData = Dex.species.get(speciesName);
 
 			state += `${i + 1}. ${speciesCN}`;
-			
+
 			// 队伍预览时不显示出战状态
 			if (!isTeamPreview && p.active) state += ' [当前出战]';
 
@@ -793,6 +827,11 @@ export class DeepSeekAIPlayer extends AIPlayer {
 			if (!isTeamPreview && p.teraType) {
 				const teraTypeCN = this.translate(p.teraType, 'types');
 				state += ` 太晶:${teraTypeCN}`;
+
+				// 显示是否已太晶化
+				if (this.myTerastallizedPokemon === speciesName) {
+					state += ` [已太晶化]`;
+				}
 			}
 
 			state += '\n';
@@ -842,10 +881,20 @@ export class DeepSeekAIPlayer extends AIPlayer {
 					});
 				}
 
-				if (active.canTerastallize) {
-					const teraTypeCN = currentPokemon.teraType ? this.translate(currentPokemon.teraType, 'types') : '未知';
-					state += `\n可太晶化！太晶属性: ${teraTypeCN}\n`;
-				}
+		// 显示太晶化状态
+		if (currentPokemon.teraType) {
+			const teraTypeCN = this.translate(currentPokemon.teraType, 'types');
+			if (this.myTerastallizedPokemon === speciesName) {
+				// 当前宝可梦已经太晶化
+				state += `\n已太晶化！太晶属性: ${teraTypeCN}\n`;
+			} else if (active.canTerastallize && this.myTerastallizedPokemon === null) {
+				// 只有在队伍里还没有宝可梦太晶化时，才能太晶化
+				state += `\n可太晶化！太晶属性: ${teraTypeCN}\n`;
+			} else if (this.myTerastallizedPokemon !== null && this.myTerastallizedPokemon !== speciesName) {
+				// 队伍里已经有其他宝可梦太晶化了
+				state += `\n太晶属性: ${teraTypeCN} (队伍已使用太晶化)\n`;
+			}
+		}
 			}
 		}
 
@@ -909,6 +958,12 @@ export class DeepSeekAIPlayer extends AIPlayer {
 				if (!isTeamPreview && p.teraType) {
 					const teraTypeCN = this.translate(p.teraType, 'types');
 					state += ` 太晶:${teraTypeCN}`;
+
+					// 显示是否已太晶化（从追踪的对手队伍信息中获取）
+					const trackedPokemon = this.opponentTeam[speciesName];
+					if (trackedPokemon && trackedPokemon.terastallized) {
+						state += ` [已太晶化]`;
+					}
 				}
 
 				state += '\n';
@@ -937,7 +992,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 	 * 调用 DeepSeek API
 	 */
 	private async callDeepSeek(prompt: string, systemPrompt: string): Promise<string | null> {
-		if(this.debugmode) console.log('CallDeepSeek: ', prompt, systemPrompt);
+		if (this.debugmode) console.log('CallDeepSeek: ', prompt, systemPrompt);
 		if (!this.apiKey) {
 			return null;
 		}
@@ -983,7 +1038,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 	 * 解析 AI 响应
 	 */
 	private parseAIResponse(response: string): { type: string; index: number; terastallize?: boolean; team?: string } | null {
-		if(this.debugmode) console.log('ParseAIResponse: ', response);
+		if (this.debugmode) console.log('ParseAIResponse: ', response);
 		if (!response) return null;
 
 		const moveMatch = response.match(/move\s+(\d+)(\s+terastallize)?/i);

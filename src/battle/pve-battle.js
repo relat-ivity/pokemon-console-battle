@@ -198,6 +198,12 @@ async function startPVEBattle() {
 	let playerBoosts = {};
 	let playerStatus = null;
 
+	// 追踪太晶化状态 - 一支队伍只能太晶化一只宝可梦
+	let playerTerastallizedPokemon = null; // 玩家太晶化的宝可梦名称
+	let playerTeraType = null; // 玩家太晶化的属性
+	let opponentTerastallizedPokemon = null; // 对手太晶化的宝可梦名称
+	let opponentTeraType = null; // 对手太晶化的属性
+
 	// 处理玩家选择的函数
 	async function handlePlayerChoice() {
 		if (isProcessingChoice || battleEnded) return;
@@ -209,7 +215,7 @@ async function startPVEBattle() {
 				// 检查是否是特殊命令
 				if (choice.toLowerCase() === 'team') {
 					// 显示当前队伍状态
-					displayBattleTeamStatus(currentRequest ? currentRequest : lastRequest, playerStatus, p2team, opponentFaintedPokemon);
+					displayBattleTeamStatus(currentRequest ? currentRequest : lastRequest, playerStatus, p2team, opponentFaintedPokemon, playerTerastallizedPokemon, playerTeraType);
 					// 递归调用，重新等待输入
 					isProcessingChoice = false;
 					await handlePlayerChoice();
@@ -275,9 +281,9 @@ async function startPVEBattle() {
 									displaySwitchChoices(currentRequest);
 									handlePlayerChoice();
 									currentRequest = null; // 清空，避免重复处理
-								} else if (currentRequest.active) {
-									displayChoices(currentRequest, battleField, opponentActive, playerBoosts, playerStatus);
-									handlePlayerChoice();
+							} else if (currentRequest.active) {
+								displayChoices(currentRequest, battleField, opponentActive, playerBoosts, playerStatus, opponentTerastallizedPokemon, opponentTeraType, playerTerastallizedPokemon, playerTeraType);
+								handlePlayerChoice();
 									lastRequest = currentRequest;
 									currentRequest = null; // 清空，避免重复处理
 								}
@@ -297,6 +303,7 @@ async function startPVEBattle() {
 							if (isPlayer) {
 								// 玩家切换宝可梦，重置能力变化和状态
 								playerBoosts = {};
+								// 太晶化状态不重置，保留在 playerTerastallizedPokemon Map 中
 								// 从HP字符串中提取状态
 								if (hp && hp.includes(' ')) {
 									const hpParts = hp.split(' ');
@@ -434,7 +441,17 @@ async function startPVEBattle() {
 							const player = isPlayer ? '【你】' : '【对手】';
 							const pokemonName = pokemon.split(': ')[1];
 							const pokemonCN = translate(pokemonName, 'pokemon');
-							console.log(`  → ${player} ${pokemonCN} 太晶化了! 属性变为: ${teraType}`);
+							const teraTypeCN = translate(teraType, 'types');
+							console.log(`\n${player} ${pokemonCN} 太晶化了! 属性变为: ${teraTypeCN}`);
+
+							// 记录太晶化状态（一支队伍只能太晶化一只宝可梦）
+							if (isPlayer) {
+								playerTerastallizedPokemon = pokemonName;
+								playerTeraType = teraType;
+							} else {
+								opponentTerastallizedPokemon = pokemonName;
+								opponentTeraType = teraType;
+							}
 						} else if (line.startsWith('|-boost|')) {
 							const parts = line.split('|');
 							const pokemon = parts[2];
@@ -638,7 +655,7 @@ async function startPVEBattle() {
 }
 
 // 显示可用的选择
-function displayChoices(request, battleField, opponentActive, playerBoosts, playerStatus) {
+function displayChoices(request, battleField, opponentActive, playerBoosts, playerStatus, opponentTerastallizedPokemon, opponentTeraType, playerTerastallizedPokemon, playerTeraType) {
 	if (request.active && request.active[0]) {
 		const active = request.active[0];
 		const pokemon = request.side.pokemon;
@@ -682,6 +699,12 @@ function displayChoices(request, battleField, opponentActive, playerBoosts, play
 
 			speciesLog += ` HP(%):${opponentActive.condition || '未知'}`;
 
+			// 显示太晶化状态（检查是否是太晶化的那只宝可梦）
+			if (opponentTerastallizedPokemon === opponentActive.species) {
+				const teraTypeCN = translate(opponentTeraType, 'types');
+				speciesLog += ` [已太晶化:${teraTypeCN}]`;
+			}
+
 			console.log(speciesLog);
 
 			if (opponentActive.status) {
@@ -720,6 +743,13 @@ function displayChoices(request, battleField, opponentActive, playerBoosts, play
 			speciesLog += ` 属性:${typesCN}`;
 		}
 		speciesLog += ` HP:${currentPokemon.condition}`;
+
+		// 显示太晶化状态（检查是否是太晶化的那只宝可梦）
+		if (playerTerastallizedPokemon === speciesName) {
+			const teraTypeCN = translate(playerTeraType, 'types');
+			speciesLog += ` [已太晶化:${teraTypeCN}]`;
+		}
+
 		console.log(speciesLog);
 
 		// 显示携带物品（如果已知）
@@ -961,7 +991,7 @@ function displayTeamInfo(team, trainerName) {
 }
 
 // 显示战斗中的队伍状态
-function displayBattleTeamStatus(request, playerStatus, p2team, opponentFaintedPokemon) {
+function displayBattleTeamStatus(request, playerStatus, p2team, opponentFaintedPokemon, playerTerastallizedPokemon, playerTeraType) {
 	if (!request || !request.side || !request.side.pokemon) {
 		console.log('无法获取队伍信息');
 		return;
@@ -991,6 +1021,12 @@ function displayBattleTeamStatus(request, playerStatus, p2team, opponentFaintedP
 
 		logInfo = `[${index + 1}] ${speciesCN}${isActive}${isFainted}`;
 		logInfo += ` HP:${poke.condition}`;
+
+		// 显示太晶化状态（检查是否是太晶化的那只宝可梦）
+		if (playerTerastallizedPokemon === speciesName) {
+			const teraTypeCN = translate(playerTeraType, 'types');
+			logInfo += ` [已太晶化:${teraTypeCN}]`;
+		}
 
 		// 显示状态异常
 		const displayStatus = poke.active ? playerStatus : poke.status;
