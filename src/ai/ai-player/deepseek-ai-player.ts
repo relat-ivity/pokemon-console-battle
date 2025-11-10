@@ -772,11 +772,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 						const statusMatch = condition.match(/\s+(\w+)$/);
 						if (statusMatch) {
 							const status = statusMatch[1];
-							const statusMap: { [key: string]: string } = {
-								'psn': '中毒', 'tox': '剧毒', 'brn': '灼伤',
-								'par': '麻痹', 'slp': '睡眠', 'frz': '冰冻'
-							};
-							state += ` [${statusMap[status] || status}]`;
+							state += ` [${this.translate(status, 'status') || status}]`;
 						}
 					}
 				}
@@ -894,11 +890,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 					}
 
 					if (trackedPokemon && trackedPokemon.status) {
-						const statusMap: { [key: string]: string } = {
-							'psn': '中毒', 'tox': '剧毒', 'brn': '灼伤',
-							'par': '麻痹', 'slp': '睡眠', 'frz': '冰冻'
-						};
-						state += ` [${statusMap[trackedPokemon.status] || trackedPokemon.status}]`;
+						state += ` [${this.translate(trackedPokemon.status, 'status') || trackedPokemon.status}]`;
 					}
 				}
 
