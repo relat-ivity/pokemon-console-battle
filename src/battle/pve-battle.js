@@ -62,9 +62,12 @@ async function startPVEBattle() {
 	// 创建战斗流
 	const streams = Sim.getPlayerStreams(new Sim.BattleStream());
 
-	// 生成随机队伍 - 使用 gen9randombattle 生成
+	// 生成随机队伍 - 使用 gen9randombattle 生成满足ou规则的队伍，然后设置为50级
 	const validator = new Sim.TeamValidator('gen9ou');
 	let p1team = Sim.Teams.generate('gen9randombattle');
+	while (validator.validateTeam(p1team) != null) {
+		p1team = Sim.Teams.generate('gen9randombattle');
+	}
 
 	// 将所有宝可梦设置为50级，并设置努力值每项为85，个体值每项为31，性格统一为Hardy（勤奋）
 	p1team = p1team.map(pokemon => ({
@@ -100,6 +103,9 @@ async function startPVEBattle() {
 	};
 
 	let p2team = Sim.Teams.generate('gen9randombattle');
+	while (validator.validateTeam(p2team) != null) {
+		p2team = Sim.Teams.generate('gen9randombattle');
+	}
 	
 	// 将所有宝可梦设置为50级，并设置努力值每项为85，个体值每项为31，性格统一为Hardy（勤奋）
 	p2team = p2team.map(pokemon => ({
