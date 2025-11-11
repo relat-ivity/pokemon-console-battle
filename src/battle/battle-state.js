@@ -4,6 +4,23 @@
  */
 
 /**
+ * 规范化宝可梦名称，用于匹配
+ * 处理各种格式：
+ * - "Qwilfish-Hisui (Qwilfish)" -> "Qwilfish-Hisui"
+ * - "Minior-Yellow" -> "Minior-Yellow"
+ * - "Bulbasaur" -> "Bulbasaur"
+ */
+function normalizeSpeciesName(name) {
+	if (!name) return name;
+	// 如果有括号，提取括号前的部分
+	const match = name.match(/^(.+?)\s*\(/);
+	if (match) {
+		return match[1].trim();
+	}
+	return name;
+}
+
+/**
  * 场地状态
  */
 class BattleField {
@@ -275,7 +292,9 @@ class OpponentState extends PokemonState {
 	 * 标记宝可梦昏厥
 	 */
 	markFainted(species) {
-		this.faintedPokemon.add(species);
+		// 规范化名称后再存储
+		const normalizedSpecies = normalizeSpeciesName(species);
+		this.faintedPokemon.add(normalizedSpecies);
 	}
 
 	/**
@@ -375,7 +394,11 @@ class BattleState {
 	 */
 	getOpponentAlivePokemon() {
 		if (!this.opponentTeam) return [];
-		return this.opponentTeam.filter(p => !this.opponent.faintedPokemon.has(p.species));
+		return this.opponentTeam.filter(p => {
+			// 规范化名称后再检查
+			const normalizedSpecies = normalizeSpeciesName(p.species);
+			return !this.opponent.faintedPokemon.has(normalizedSpecies);
+		});
 	}
 }
 

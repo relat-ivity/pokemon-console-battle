@@ -16,10 +16,7 @@ function displayTeamInfo(team, trainerName, translator) {
 	team.forEach((pokemon, index) => {
 		const speciesCN = translator.translate(pokemon.species, 'pokemon');
 		const gender = pokemon.gender ? ` (${pokemon.gender})` : '';
-		const nameStr = pokemon.name && pokemon.name !== pokemon.species
-			? ` (${translator.translate(pokemon.name, 'pokemon')})`
-			: '';
-		let logInfo = `[${index + 1}] ${speciesCN}${nameStr}${gender}`;
+		let logInfo = `[${index + 1}] ${speciesCN}${gender}`;
 
 		// 获取宝可梦数据
 		const speciesData = Sim.Dex.species.get(pokemon.species);
