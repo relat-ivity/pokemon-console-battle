@@ -67,7 +67,7 @@ function generateValidTeam(format) {
  * 选择对手
  */
 async function selectOpponent() {
-	console.log("\n请选择对手：\n    1. DeepSeek AI\n    2. 本地智能AI\n    3. 随机AI");
+	console.log("\n请选择对手：\n    1. DeepSeek AI\n    2. 本地智能AI\n    3. Master AI\n    4. 随机AI");
 	const opponentChoice = await prompt('请输入对手编号:');
 
 	let opponent = '本地智能AI';
@@ -80,6 +80,9 @@ async function selectOpponent() {
 		opponent = '本地智能AI';
 		aiType = 'smart_ai';
 	} else if (opponentChoice === '3') {
+		opponent = 'Master AI';
+		aiType = 'master_ai';
+	} else if (opponentChoice === '4') {
 		opponent = '随机AI';
 		aiType = 'random_ai';
 	} else {

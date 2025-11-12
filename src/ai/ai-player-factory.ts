@@ -5,18 +5,21 @@
 import { SmartAIPlayer } from './ai-player/smart-ai-player';
 import { DeepSeekAIPlayer } from './ai-player/deepseek-ai-player';
 import { RandomAIPlayer } from './ai-player/random-ai-player';
+import { MasterAIPlayer } from './ai-player/master-ai-player';
 import { AIPlayer } from './ai-player';
 
 export enum AIType {
 	SMART = 1,
 	RANDOM = 2,
-	DEEPSEEK = 3
+	DEEPSEEK = 3,
+	MASTER = 4
 }
 
 export const AI_CONFIG = {
 	smart_ai: { id: AIType.SMART, name: 'Smart AI Player' },
 	random_ai: { id: AIType.RANDOM, name: 'Random AI Player' },
-	deepseek_ai: { id: AIType.DEEPSEEK, name: 'DeepSeek AI Player' }
+	deepseek_ai: { id: AIType.DEEPSEEK, name: 'DeepSeek AI Player' },
+	master_ai: { id: AIType.MASTER, name: 'Master AI Player' }
 } as const;
 
 /**
@@ -76,6 +79,9 @@ export class AIPlayerFactory {
 					break;
 				case 'deepseek_ai':
 					ai = new DeepSeekAIPlayer(playerStream, opponentTeamData, debug);
+					break;
+				case 'master_ai':
+					ai = new MasterAIPlayer(playerStream, debug);
 					break;
 				default:
 					throw new Error(`未实现的 AI 类型: ${type}`);

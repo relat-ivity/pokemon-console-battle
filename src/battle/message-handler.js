@@ -4,12 +4,14 @@
  */
 
 const Sim = require('pokemon-showdown');
+const { isPokemonSame } = require('./battle-state');
 
 class BattleMessageHandler {
 	constructor(battleState, translator, debugMode = false) {
 		this.state = battleState;
 		this.translator = translator;
 		this.debugMode = debugMode;
+		this.isPokemonSame = isPokemonSame;
 	}
 
 	/**
@@ -234,7 +236,7 @@ class BattleMessageHandler {
 		console.log(`  → ${player} ${targetCN} 受到伤害! (HP: ${hp})`);
 
 		// 更新对手宝可梦HP
-		if (!isPlayer && this.state.opponent.species === targetName) {
+		if (!isPlayer && this.isPokemonSame(this.state.opponent.species, targetName)) {
 			this.state.opponent.setCondition(hp);
 		}
 	}
@@ -263,7 +265,7 @@ class BattleMessageHandler {
 		console.log(`  → ${player} ${targetCN} 恢复了HP!${fromText} (HP: ${hp})`);
 
 		// 更新对手宝可梦HP
-		if (!isPlayer && this.state.opponent.species === targetName) {
+		if (!isPlayer && this.isPokemonSame(this.state.opponent.species, targetName)) {
 			this.state.opponent.setCondition(hp);
 		}
 	}
@@ -280,7 +282,7 @@ class BattleMessageHandler {
 
 		if (isPlayer) {
 			this.state.player.setStatus(status);
-		} else if (this.state.opponent.species === targetName) {
+		} else if (this.isPokemonSame(this.state.opponent.species, targetName)) {
 			this.state.opponent.setStatus(status);
 		}
 	}
@@ -296,7 +298,7 @@ class BattleMessageHandler {
 
 		if (isPlayer) {
 			this.state.player.clearStatus();
-		} else if (this.state.opponent.species === targetName) {
+		} else if (this.isPokemonSame(this.state.opponent.species, targetName)) {
 			this.state.opponent.clearStatus();
 		}
 	}
@@ -366,7 +368,7 @@ class BattleMessageHandler {
 
 		if (isPlayer) {
 			this.state.player.boost(stat, amount);
-		} else if (this.state.opponent.species === pokemonName) {
+		} else if (this.isPokemonSame(this.state.opponent.species, pokemonName)) {
 			this.state.opponent.boost(stat, amount);
 		}
 	}
@@ -389,7 +391,7 @@ class BattleMessageHandler {
 
 		if (isPlayer) {
 			this.state.player.unboost(stat, amount);
-		} else if (this.state.opponent.species === pokemonName) {
+		} else if (this.isPokemonSame(this.state.opponent.species, pokemonName)) {
 			this.state.opponent.unboost(stat, amount);
 		}
 	}
@@ -405,7 +407,7 @@ class BattleMessageHandler {
 
 		if (isPlayer) {
 			this.state.player.clearBoosts();
-		} else if (this.state.opponent.species === pokemonName) {
+		} else if (this.isPokemonSame(this.state.opponent.species, pokemonName)) {
 			this.state.opponent.clearBoosts();
 		}
 	}

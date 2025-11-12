@@ -5,19 +5,46 @@
 
 /**
  * 规范化宝可梦名称，用于匹配
+ * 提取基础种类名称（去掉地区形态后缀）
  * 处理各种格式：
- * - "Qwilfish-Hisui (Qwilfish)" -> "Qwilfish-Hisui"
- * - "Minior-Yellow" -> "Minior-Yellow"
- * - "Bulbasaur" -> "Bulbasaur"
+ * - "Qwilfish-Hisui (Qwilfish)" -> "Qwilfish"（用括号中的基础名）
+ * - "Qwilfish-Hisui" -> "Qwilfish"（去掉后缀）
+ * - "Qwilfish" -> "Qwilfish"（保持不变）
+ * - "Minior-Yellow" -> "Minior"（去掉颜色后缀）
+ * - "Bulbasaur" -> "Bulbasaur"（保持不变）
  */
 function normalizeSpeciesName(name) {
 	if (!name) return name;
-	// 如果有括号，提取括号前的部分
-	const match = name.match(/^(.+?)\s*\(/);
-	if (match) {
-		return match[1].trim();
+
+	// 首先尝试从括号中提取基础种类名
+	const bracketMatch = name.match(/\(([^)]+)\)/);
+	if (bracketMatch) {
+		// 如果有括号，使用括号内的名称作为基础种类
+		return bracketMatch[1].trim();
 	}
+
+	// 如果没有括号，去掉地区形态后缀
+	// 常见的后缀模式：-Hisui, -Alola, -Galar, -Paldea, -Yellow, -Red, -Blue 等
+	const baseMatch = name.match(/^([A-Za-z]+)(?:-[A-Za-z]+)?$/);
+	if (baseMatch) {
+		const withoutSuffix = name.split('-')[0]; // 去掉第一个 - 之后的所有内容
+		return withoutSuffix;
+	}
+
 	return name;
+}
+
+/**
+ * 比较两个宝可梦名称是否相同（忽略地区形态）
+ * 使用规范化的名称进行比较
+ * @param {string} name1 - 第一个宝可梦名称
+ * @param {string} name2 - 第二个宝可梦名称
+ * @returns {boolean} 是否为同一宝可梦
+ */
+function isPokemonSame(name1, name2) {
+	const normalized1 = normalizeSpeciesName(name1);
+	const normalized2 = normalizeSpeciesName(name2);
+	return normalized1 === normalized2;
 }
 
 /**
@@ -407,5 +434,6 @@ module.exports = {
 	BattleField,
 	PokemonState,
 	PlayerState,
-	OpponentState
+	OpponentState,
+	isPokemonSame
 };
