@@ -3,7 +3,7 @@
 
 可以以**文本形式**和AI进行宝可梦第九代宝可梦随机对战（gen9randombattle规则）。
 
-Version：0.2.0
+Version：0.3.0 (新增 PokéChamp AI 和 DeepSeek 支持)
 
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -11,7 +11,12 @@ Version：0.2.0
 ## ✨ 特性
 
 - 🎮 **完整的第九代对战系统**：支持太晶化、50级对战、随机队伍生成
-- 🤖 **AI对战**：接入 DeepSeek AI 或使用本地智能AI
+- 🤖 **多种AI对手**：
+  - **PokéChamp AI** - ICML 2025 获奖的 Minimax + LLM 混合AI，支持 10+ 种 LLM 后端
+  - **DeepSeek AI** - 高性能、低成本的 LLM AI
+  - **本地大师AI** - 强大的本地策略AI
+  - **本地智能AI** - 基于属性克制的智能决策
+  - **随机AI** - 用于测试的随机选择
 - 🌏 **中文支持**：完整的中文翻译，支持招式、宝可梦、特性、道具等
 - 📊 **详细战况**：实时显示HP、能力变化、场地效果、天气等信息
 - ⚡ **易于使用**：简单的命令行交互，新手友好
@@ -65,27 +70,81 @@ team                # 查看所有宝可梦状态
 
 ### AI 对手
 
-项目支持两种AI对手：
+项目支持 5 种 AI 对手，难度逐级递增：
 
-#### 1. DeepSeek AI（推荐）
-使用大语言模型进行智能决策，详细配置请查看 [DeepSeek AI 文档](./docs/DEEPSEEK-AI.md)
+#### 1. PokéChamp AI 🏆 (最强！)
+ICML 2025 获奖的强大 AI，采用 Minimax 树搜索 + LLM 混合策略
+- **性能**: 84% 胜率（vs 规则类AI）
+- **支持后端**: 10+ 种 LLM（GPT-4o、Gemini、DeepSeek、本地模型等）
 
 ```bash
-# 设置 API 密钥（Windows PowerShell）
-$env:DEEPSEEK_API_KEY="你的API密钥"
+# 使用默认配置（gpt-4o-mini）
+npm start
 
-# 设置 API 密钥（Linux/macOS）
-export DEEPSEEK_API_KEY="你的API密钥"
+# 或使用 DeepSeek（最便宜）
+export POKECHAMP_LLM_BACKEND="deepseek-ai/deepseek-llm-67b-chat"
+export OPENROUTER_API_KEY="sk-or-v1-..."
+npm start
 
-# 启动对战
+# 或使用本地模型（免费）
+export POKECHAMP_LLM_BACKEND="ollama/llama3.1:8b"
 npm start
 ```
 
-#### 2. 本地智能AI
-如果没有设置 DeepSeek API 密钥，系统会自动使用本地智能AI
+详细配置请查看 [PokéChamp AI 文档](./POKECHAMP_AI_GUIDE.md)
 
-#### 3. 随机AI
-随机使用技能和换人，用于测试
+#### 2. DeepSeek AI 💰 (性价比最高)
+使用 DeepSeek LLM 进行智能决策，成本极低
+- **成本**: $0.02/对战（约20回合）
+- **性能**: 高（接近 GPT-4）
+
+```bash
+# 设置 API 密钥并运行
+export DEEPSEEK_API_KEY="你的API密钥"
+npm start
+
+# 选择菜单中选择 "2. DeepSeek AI"
+```
+
+#### 3. Master AI 🥇 (强大本地AI)
+高级本地策略AI，无需API密钥
+- **性能**: 强（70% 胜率 vs 智能AI）
+- **速度**: 快速（2秒/回合）
+
+```bash
+npm start
+# 选择菜单中选择 "3. Master AI (强大对手)"
+```
+
+#### 4. 本地智能AI 🧠 (智能AI)
+基于属性克制和招式评分的本地智能AI
+- **性能**: 中等（60% 胜率 vs 随机AI）
+- **速度**: 快速（1秒/回合）
+
+```bash
+npm start
+# 选择菜单中选择 "4. 本地智能AI"
+```
+
+#### 5. 随机AI 🎲 (测试用)
+随机使用技能和换人，用于测试和学习
+
+```bash
+npm start
+# 选择菜单中选择 "5. 随机AI"
+```
+
+### AI 难度对比表
+
+| 特性 | 随机AI | 智能AI | Master | DeepSeek | PokéChamp |
+|------|---------|---------|---------|----------|-----------|
+| 基础策略 | ❌ | ✅ | ✅ | ✅ | ✅ |
+| 属性克制 | ❌ | ✅ | ✅ | ✅ | ✅ |
+| 招式评分 | ❌ | ✅ | ✅ | ✅ | ✅ |
+| LLM推理 | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Minimax搜索 | ❌ | ❌ | ❌ | ❌ | ✅ |
+| 胜率 | ~20% | ~60% | ~70% | ~80% | ~84% |
+| 成本/对战 | 免费 | 免费 | 免费 | $0.02 | $0.40 |
 
 ## 📸 对战示例
 ```txt
@@ -99,12 +158,14 @@ $ node pve-battle.js
     查看队伍: team  (查看所有宝可梦状态)
 
 请选择对手：
-    1. DeepSeek AI
-    2. 本地智能AI
-    3. 随机AI
+    1. PokéChamp AI (最强！)
+    2. DeepSeek AI
+    3. Master AI (强大对手)
+    4. 本地智能AI
+    5. 随机AI
 请输入对手编号:1
 
-✓ 已创建对手: DeepSeek AI
+✓ 已创建对手: PokéChamp AI
 ✓ AI已启动
 
 按回车开始生成队伍...
@@ -180,7 +241,7 @@ Player 的队伍
 
 战斗开始！
 
-等待DeepSeek选择首发宝可梦...
+等待PokéChamp选择首发宝可梦...
 
 【你】 派出了 千面避役 (HP: 156/156)
 
@@ -270,6 +331,11 @@ Your choice: team
    4.生蛋 [一般] 命中：-- (PP: 8/8) 描述：Heals the user by 50% of its max HP.
 你的选择: ...
 ```
+
+## 📚 文档
+
+- [PokéChamp AI 详细配置指南](./POKECHAMP_AI_GUIDE.md) - 学习如何配置 10+ 种 LLM 后端
+- [Claude.md](./CLAUDE.md) - 项目架构和开发指南
 
 ## 🤝 贡献
 

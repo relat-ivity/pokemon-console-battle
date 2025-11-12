@@ -67,22 +67,25 @@ function generateValidTeam(format) {
  * 选择对手
  */
 async function selectOpponent() {
-	console.log("\n请选择对手：\n    1. DeepSeek AI\n    2. 本地智能AI\n    3. Master AI\n    4. 随机AI");
+	console.log("\n请选择对手：\n    1. PokéChamp AI\n    2. DeepSeek AI\n    3. 本地大师AI\n    4. 本地智能AI\n    5. 随机AI");
 	const opponentChoice = await prompt('请输入对手编号:');
 
 	let opponent = '本地智能AI';
 	let aiType = 'smart_ai';
 
 	if (opponentChoice === '1') {
+		opponent = 'PokéChamp AI';
+		aiType = 'pokechamp_ai';
+	} else if (opponentChoice === '2') {
 		opponent = 'DeepSeek AI';
 		aiType = 'deepseek_ai';
-	} else if (opponentChoice === '2') {
-		opponent = '本地智能AI';
-		aiType = 'smart_ai';
 	} else if (opponentChoice === '3') {
 		opponent = 'Master AI';
 		aiType = 'master_ai';
 	} else if (opponentChoice === '4') {
+		opponent = '本地智能AI';
+		aiType = 'smart_ai';
+	} else if (opponentChoice === '5') {
 		opponent = '随机AI';
 		aiType = 'random_ai';
 	} else {
@@ -293,7 +296,51 @@ async function startPVEBattle() {
 
 	// 创建 AI 对手
 	const ai = AIPlayerFactory.createAI(aiType, streams.p2, debug_mode, p1team);
-	console.log(`\n✓ 已创建对手: ${opponent}`);
+
+	// 获取实际的 AI 名字（如果降级会显示降级后的名字）
+	let actualOpponentName = opponent;
+	let warningMessage = '';
+
+	// DeepSeek 特殊处理：检查是否降级
+	if (aiType === 'deepseek_ai' && !process.env.DEEPSEEK_API_KEY) {
+		actualOpponentName = '本地智能AI (DeepSeek降级)';
+		warningMessage = '⚠️  未检测到 DEEPSEEK_API_KEY，已降级到本地智能AI';
+	}
+
+	// PokéChamp 特殊处理：检查 LLM 后端和 API 密钥
+	if (aiType === 'pokechamp_ai') {
+		const llmBackend = process.env.POKECHAMP_LLM_BACKEND || 'deepseek';
+		const requiresDeepSeekDirect = llmBackend === 'deepseek';
+		const requiresOpenAI = llmBackend.startsWith('gpt');
+		const requiresGemini = llmBackend.startsWith('gemini');
+		const requiresOpenRouter = (llmBackend.startsWith('deepseek') && llmBackend !== 'deepseek') ||
+		                            llmBackend.startsWith('openai/') ||
+		                            llmBackend.startsWith('anthropic/') ||
+		                            llmBackend.startsWith('meta/') ||
+		                            llmBackend.startsWith('mistral/') ||
+		                            llmBackend.startsWith('cohere/');
+
+		let missingKey = null;
+		if (requiresDeepSeekDirect && !process.env.DEEPSEEK_API_KEY) {
+			missingKey = 'DEEPSEEK_API_KEY';
+		} else if (requiresOpenAI && !process.env.OPENAI_API_KEY) {
+			missingKey = 'OPENAI_API_KEY';
+		} else if (requiresGemini && !process.env.GEMINI_API_KEY) {
+			missingKey = 'GEMINI_API_KEY';
+		} else if (requiresOpenRouter && !process.env.OPENROUTER_API_KEY) {
+			missingKey = 'OPENROUTER_API_KEY';
+		}
+
+		if (missingKey) {
+			actualOpponentName = 'Master AI (PokéChamp降级)';
+			warningMessage = `⚠️  ${llmBackend} 需要 ${missingKey}，已降级到 Master AI`;
+		}
+	}
+
+	console.log(`\n✓ 已创建对手: ${actualOpponentName}`);
+	if (warningMessage) {
+		console.log(warningMessage);
+	}
 
 	// 启动AI
 	ai.start().catch(err => {
