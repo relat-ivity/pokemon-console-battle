@@ -36,7 +36,7 @@ Version：0.3.0 (新增 PokéChamp AI 和 DeepSeek 支持)
 
 ```bash
 # 克隆仓库
-git clone https://github.com/yourusername/pokemon-text-battle.git
+git clone https://github.com/relat-ivity/pokemon-text-battle.git
 cd pokemon-text-battle
 
 # 安装依赖
