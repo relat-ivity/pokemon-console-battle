@@ -68,7 +68,7 @@ export class PokéChampAIPlayer extends AIPlayer {
 						console.error('❌ [PokéChamp] Process error:', error.message);
 						// 如果 python 失败，尝试 python3
 						if (pythonCmd === 'python') {
-							console.log('[PokéChamp] python3 failed, trying python...');
+							console.log('[PokéChamp] python failed, trying python3...');
 							tryStartWithCommand('python3');
 						} else {
 							reject(error);
@@ -82,7 +82,7 @@ export class PokéChampAIPlayer extends AIPlayer {
 							console.error('❌ [PokéChamp]', message);
 							// 如果 python 失败，尝试 python3
 							if (pythonCmd === 'python') {
-								console.log('[PokéChamp] python3 failed, trying python...');
+								console.log('[PokéChamp] python failed, trying python3...');
 								tryStartWithCommand('python3');
 							} else {
 								reject(new Error(message));
@@ -143,7 +143,7 @@ export class PokéChampAIPlayer extends AIPlayer {
 					console.error('❌ [PokéChamp] Spawn error:', error);
 					// 如果 python 失败，尝试 python3
 					if (pythonCmd === 'python') {
-						console.log('[PokéChamp] python3 failed, trying python...');
+						console.log('[PokéChamp] python failed, trying python3...');
 						tryStartWithCommand('python3');
 					} else {
 						reject(error);
@@ -151,6 +151,7 @@ export class PokéChampAIPlayer extends AIPlayer {
 				}
 			};
 
+			// 先尝试 python 命令，失败后自动尝试 python3
 			tryStartWithCommand('python');
 		});
 	}
