@@ -6,20 +6,23 @@ import { SmartAIPlayer } from './ai-player/smart-ai-player';
 import { DeepSeekAIPlayer } from './ai-player/deepseek-ai-player';
 import { RandomAIPlayer } from './ai-player/random-ai-player';
 import { MasterAIPlayer } from './ai-player/master-ai-player';
+import { PokéChampAIPlayer } from './ai-player/pokechamp-ai-player';
 import { AIPlayer } from './ai-player';
 
 export enum AIType {
 	SMART = 1,
 	RANDOM = 2,
 	DEEPSEEK = 3,
-	MASTER = 4
+	MASTER = 4,
+	POKECHAMP = 5
 }
 
 export const AI_CONFIG = {
 	smart_ai: { id: AIType.SMART, name: 'Smart AI Player' },
 	random_ai: { id: AIType.RANDOM, name: 'Random AI Player' },
 	deepseek_ai: { id: AIType.DEEPSEEK, name: 'DeepSeek AI Player' },
-	master_ai: { id: AIType.MASTER, name: 'Master AI Player' }
+	master_ai: { id: AIType.MASTER, name: 'Master AI Player' },
+	pokechamp_ai: { id: AIType.POKECHAMP, name: 'PokéChamp AI (Minimax + LLM) - Requires OPENROUTER_API_KEY' }
 } as const;
 
 /**
@@ -57,12 +60,14 @@ export class AIPlayerFactory {
 	 * @param debug 是否开启调试
 	 * @param opponentTeamData 对手队伍数据（仅DeepSeek AI使用）
 	 * @param lang 语言（仅DeepSeek AI使用）
+	 * @param backend PokéChamp AI 后端（OpenRouter 模型标识符或标准后端名称）
 	 */
 	static createAI(
 		type: string,
 		playerStream: any,
 		debug: boolean = false,
 		opponentTeamData: any[] | null = null,
+		backend: string = 'deepseek/deepseek-chat-v3.1:free'
 	): AIPlayer {
 		const config = AI_CONFIG[type as keyof typeof AI_CONFIG];
 		if (!config) {
@@ -73,6 +78,12 @@ export class AIPlayerFactory {
 		if (type === 'deepseek_ai' && !process.env.DEEPSEEK_API_KEY) {
 			console.log('⚠ 未设置 DEEPSEEK_API_KEY，使用 SmartAI');
 			return this.getDefaultAI(playerStream, debug);
+		}
+
+		// PokéChamp AI 特殊处理：需要 OPENROUTER_API_KEY
+		if (type === 'pokechamp_ai' && !process.env.OPENROUTER_API_KEY) {
+			console.log('⚠ 未设置 OPENROUTER_API_KEY，使用 Master AI');
+			return this.getMasterAI(playerStream, debug);
 		}
 
 		try {
@@ -89,6 +100,9 @@ export class AIPlayerFactory {
 					break;
 				case 'master_ai':
 					ai = new MasterAIPlayer(playerStream, debug);
+					break;
+				case 'pokechamp_ai':
+					ai = new PokéChampAIPlayer(playerStream, debug, backend);
 					break;
 				default:
 					throw new Error(`未实现的 AI 类型: ${type}`);

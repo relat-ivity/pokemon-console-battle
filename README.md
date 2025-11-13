@@ -3,7 +3,7 @@
 
 可以以**文本形式**和AI进行宝可梦第九代宝可梦随机对战（gen9randombattle规则）。
 
-Version：0.3.0 (新增 PokéChamp AI 和 DeepSeek 支持)
+Version：0.3.0 (新增 PokéChamp AI)
 
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -25,7 +25,7 @@ Version：0.3.0 (新增 PokéChamp AI 和 DeepSeek 支持)
 
 - 宝可梦随机分配
 - 所有宝可梦等级50级，性格：勤奋，个体值(IV)每项31，努力值(EV)每项85
-- *添加选择首发环节
+- 添加**选择首发**环节
 
 ## 📦 安装
 

@@ -295,7 +295,9 @@ async function startPVEBattle() {
 	const streams = Sim.getPlayerStreams(new Sim.BattleStream());
 
 	// 创建 AI 对手
-	const ai = AIPlayerFactory.createAI(aiType, streams.p2, debug_mode, p1team);
+	// 获取 PokéChamp LLM 后端配置
+	const pokechampBackend = process.env.POKECHAMP_LLM_BACKEND || 'deepseek/deepseek-chat-v3.1:free';
+	const ai = AIPlayerFactory.createAI(aiType, streams.p2, debug_mode, p1team, pokechampBackend);
 
 	// 获取实际的 AI 名字（如果降级会显示降级后的名字）
 	let actualOpponentName = opponent;
@@ -309,7 +311,7 @@ async function startPVEBattle() {
 
 	// PokéChamp 特殊处理：检查 LLM 后端和 API 密钥
 	if (aiType === 'pokechamp_ai') {
-		const llmBackend = process.env.POKECHAMP_LLM_BACKEND || 'deepseek';
+		const llmBackend = pokechampBackend;
 		const requiresDeepSeekDirect = llmBackend === 'deepseek';
 		const requiresOpenAI = llmBackend.startsWith('gpt');
 		const requiresGemini = llmBackend.startsWith('gemini');

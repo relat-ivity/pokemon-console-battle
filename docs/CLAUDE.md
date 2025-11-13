@@ -4,7 +4,7 @@
 
 ## 项目概述
 
-**宝可梦控制台对战** 是一个 TypeScript/JavaScript 项目，在控制台中模拟第九代宝可梦对战。玩家可以与 AI 对手（DeepSeek AI、本地智能 AI 或随机 AI）进行对战，支持太晶化、能力变化和中文本地化。
+**宝可梦控制台对战** 是一个 TypeScript/JavaScript 项目，在控制台中模拟第九代宝可梦对战。玩家可以与多种 AI 对手进行对战：**PokéChamp AI**（Minimax + LLM，84% 胜率）、DeepSeek AI、Master AI、智能 AI 或随机 AI，支持太晶化、能力变化和中文本地化。
 
 **关键点：**
 - 基于 Pokemon Showdown 模拟器
@@ -24,9 +24,16 @@ src/
 ├── support/             # 工具模块（翻译系统）
 └── types/               # TypeScript 类型定义
 
+pokechamp-ai/
+├── pokechamp/          # PokéChamp AI 核心库
+├── pokechamp-service.py # PokéChamp AI 服务（Python 子进程）
+└── ...                 # 其他 Python 依赖
+
 dist/                   # 编译后的 JavaScript 输出（自动生成）
 data/                   # 翻译数据文件
+docs/                   # 文档文件
 tests/                  # 测试文件
+.env.example            # 环境变量配置示例
 ```
 
 ### 战斗系统 (`src/battle/`)
@@ -65,6 +72,12 @@ tests/                  # 测试文件
 
 - **ai-player.ts**：抽象 `AIPlayer` 类，继承 Pokemon Showdown 的 BattlePlayer
 - **ai-player-factory.ts**：根据类型创建 AI 实例的工厂
+- **ai-player/pokechamp-ai-player.ts**：PokéChamp AI，Minimax 树搜索 + LLM 混合决策（84% 胜率）
+  - 使用 Python 子进程运行 PokéChamp LLMPlayer
+  - 通过 JSON 进行进程间通信
+  - 需要 `OPENROUTER_API_KEY` 环境变量
+  - 支持多种免费和付费 LLM 模型（默认使用免费的 DeepSeek）
+- **ai-player/master-ai-player.ts**：高级智能 AI，使用更复杂的启发式算法
 - **ai-player/smart-ai-player.ts**：本地智能 AI，评估招式威力和属性克制
 - **ai-player/deepseek-ai-player.ts**：基于 LLM 的 AI，使用 DeepSeek API（有本地 AI 降级）
 - **ai-player/random-ai-player.ts**：随机选择招式/切换，用于测试
@@ -195,7 +208,31 @@ UI 渲染 (ui-display.js)
 
 `battleState` 对象贯穿整个管道，随着对战进行而不断更新。
 
-## DeepSeek AI 配置
+## AI 配置
+
+### PokéChamp AI 配置（推荐）⭐
+
+**环境变量配置（使用 .env 文件）：**
+
+```bash
+# 1. 复制配置文件
+cp .env.example .env
+
+# 2. 编辑 .env 文件，填写以下内容：
+OPENROUTER_API_KEY=sk-or-v1-your-api-key-here
+POKECHAMP_LLM_BACKEND=deepseek/deepseek-chat-v3.1:free  # 可选，这是默认值
+```
+
+**特性：**
+- 需要 `OPENROUTER_API_KEY` 环境变量（获取免费 API key: https://openrouter.ai/keys）
+- 默认使用完全**免费**的 `deepseek/deepseek-chat-v3.1:free` 模型
+- 支持多种免费模型（Llama、Gemma）和付费模型（GPT-4o、Claude）
+- 如果未设置 API key，自动降级到 Master AI
+- Minimax 树搜索（K=2）+ LLM 评估
+- 84% 胜率（vs 规则类 AI）
+- 详见 `docs/POKECHAMP_AI_GUIDE.md` 了解完整配置
+
+### DeepSeek AI 配置
 
 - 需要 `DEEPSEEK_API_KEY` 环境变量
 - 如果 API 失败或未设置密钥，则降级到智能 AI
@@ -221,7 +258,9 @@ UI 渲染 (ui-display.js)
 ### 测试 AI 行为
 - 使用随机 AI 进行快速调试
 - 使用智能 AI 进行可预测的测试用例
-- DeepSeek AI 需要 API 密钥；先使用本地 AI 测试
+- 使用 Master AI 测试更复杂的策略
+- PokéChamp AI 需要 `OPENROUTER_API_KEY`；可使用免费的 DeepSeek 模型测试
+- DeepSeek AI 需要 `DEEPSEEK_API_KEY`；先使用本地 AI 测试
 
 ### 处理翻译
 - 编辑 `data/translations-cn.json` 添加新翻译
@@ -239,14 +278,31 @@ UI 渲染 (ui-display.js)
 
 ## 关键依赖
 
+### Node.js 依赖
 - **pokemon-showdown**：战斗模拟器和宝可梦数据库
 - **axios**：HTTP 客户端（用于 DeepSeek API 调用）
 - **readline**：Node.js 模块，用于 CLI 输入/输出
 - **@types/node**：TypeScript 类型定义
+- **dotenv**：环境变量加载（用于 .env 文件）
+
+### Python 依赖（PokéChamp AI）
+- **pokechamp**：PokéChamp AI 库（位于 pokechamp-ai/ 子目录）
+- **poke-env**：Pokemon Showdown 的 Python 接口
+- **openai**：OpenAI/OpenRouter API 客户端
+- 详细依赖见 `pokechamp-ai/pyproject.toml` 或 `pokechamp-ai/requirements.txt`
 
 ## 最近的更改和已知问题
 
-请查看 TODO.md 了解当前问题和待办工作。最近的修复改进了请求处理机制：
+### PokéChamp AI 集成（最新）⭐
+- **新增 PokéChamp AI**：集成了 ICML 2025 获奖的高级对战 AI
+- **环境变量配置**：改用 `.env` 文件配置（`OPENROUTER_API_KEY`、`POKECHAMP_LLM_BACKEND`）
+- **免费 LLM 支持**：默认使用免费的 `deepseek/deepseek-chat-v3.1:free` 模型
+- **Python 子进程**：通过 `pokechamp-service.py` 运行 PokéChamp LLMPlayer
+- **进程间通信**：使用 JSON 格式在 Node.js 和 Python 之间通信
+- 详见 `docs/POKECHAMP_AI_GUIDE.md` 了解完整文档
+
+### 请求处理机制修复
+最近的修复改进了请求处理机制：
 - **teamPreview**：收到后立即发送队伍顺序
 - **forceSwitch**：保存请求并注册 `process.nextTick()` 延迟处理回调，在 `|turn|` 消息后立即处理，或如果没有 `|turn|` 消息（刚上场就倒下）则由延迟回调处理
 - **active**：保存请求，等待 `|turn|` 消息到达后处理
@@ -254,8 +310,12 @@ UI 渲染 (ui-display.js)
 - 解决了 request 消息提前到达导致的显示格式混乱问题
 - 解决了刚上场就倒下导致的卡死问题（有 `process.nextTick()` 作为备用）
 
+请查看 TODO.md 了解当前问题和待办工作。
+
 ## 测试入口
 
-- `npm test` 运行 `tests/test-deepseek.js` 进行 DeepSeek AI 测试
-- 可以运行 `npm run battle` 手动测试完整对战流程
-- 使用随机 AI 测试而无需 API 依赖
+- `npm start` - 启动完整对战（推荐），可选择任何 AI 对手
+- `npm run battle` - 直接运行对战
+- `npm test` - 运行 `tests/test-deepseek.js` 进行 DeepSeek AI 测试
+- 使用随机 AI 或智能 AI 测试而无需 API 依赖
+- 使用 PokéChamp AI 测试需要在 `.env` 文件中配置 `OPENROUTER_API_KEY`
