@@ -202,14 +202,20 @@ function startPythonService() {
                 if (!pythonReady) {
                     log(colors.yellow, '[Python]', '等待 Python 服务初始化中...');
                 }
-            }, 2000);
+            }, 3000);
+
+            setTimeout(() => {
+                if (!pythonReady) {
+                    log(colors.yellow, '[Python]', '继续等待 Python 服务初始化...');
+                }
+            }, 6000);
 
             setTimeout(() => {
                 if (!pythonReady) {
                     log(colors.green, '[Python]', '✓ 继续启动客户端（Python 服务将在后台继续初始化）\n');
                     resolve();
                 }
-            }, 5000);
+            }, 8000);
         }
 
         tryNextCommand();

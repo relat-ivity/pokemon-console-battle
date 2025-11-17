@@ -120,7 +120,7 @@ class Pokemon:
         if battle_format and "vgc" in battle_format.lower():
             sets_file = 'poke_env/data/static/gen9/vgc/sets_1760.json'
         else:
-            sets_file = 'poke_env/data/static/gen9/ou/sets_1500.json'
+            sets_file = 'pokechamp-ai/poke_env/data/static/gen9/ou/sets_1500.json'
         
         with open(sets_file, 'r') as f:
             sets = json.load(f)

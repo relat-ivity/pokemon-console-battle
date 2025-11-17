@@ -59,7 +59,7 @@ npm run build
 ```bash
 npm run battle
 # 或
-node src/battle_local/pve-battle.js
+node src/battle/pve-battle.js
 ```
 
 #### 模式 2：服务器对战模式

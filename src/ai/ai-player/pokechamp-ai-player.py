@@ -82,47 +82,53 @@ async def main():
 
         args = SimpleArgs()
 
-        # 使用 get_llm_player 工厂函数创建玩家（避免循环导入）
-        player = get_llm_player(
-            args=args,
-            backend=backend,
-            prompt_algo="minimax",
-            name="pokechamp",
-            KEY=api_key,
+        # 直接创建 LLMPlayer，使用 LocalhostServerConfiguration
+        from pokechamp.llm_player import LLMPlayer
+        from poke_env.ps_client.account_configuration import AccountConfiguration
+
+        # 创建一个包装类来添加调试日志
+        class DebugLLMPlayer(LLMPlayer):
+            def choose_move(self, battle):
+                print(f"[🎯] choose_move 被调用！回合: {battle.turn}", file=sys.stderr, flush=True)
+                print(f"[🎯] 对战标签: {battle.battle_tag}", file=sys.stderr, flush=True)
+                print(f"[🎯] 可用招式数: {len(battle.available_moves)}", file=sys.stderr, flush=True)
+                print(f"[🎯] 可切换宝可梦数: {len(battle.available_switches)}", file=sys.stderr, flush=True)
+                result = super().choose_move(battle)
+                print(f"[✅] choose_move 完成！返回: {result}", file=sys.stderr, flush=True)
+                return result
+
+        player = DebugLLMPlayer(
             battle_format=battle_format,
-            device=0,
-            PNUMBER1=unique_id,  # 使用唯一ID避免用户名冲突
-            USERNAME="",
-            PASSWORD="",
-            online=False,  # 设置为 False，这样 server_config 会是 None
-            use_timeout=False,
-            timeout_seconds=90
+            api_key=api_key,
+            backend=backend,
+            temperature=0.7,
+            prompt_algo="minimax",  # 使用 Minimax + LLM
+            log_dir="./battle_log",
+            K=2,  # Minimax 树深度
+            account_configuration=AccountConfiguration(f"pokechamp{unique_id}", ""),
+            server_configuration=LocalhostServerConfiguration  # 直接使用本地服务器配置
         )
 
-        # 手动覆盖 server_configuration 为 LocalhostServerConfiguration
-        player.ps_client._server_configuration = LocalhostServerConfiguration
-
         print(f"[✓] PokéChamp AI 初始化成功", file=sys.stderr, flush=True)
-        print(f"[DEBUG] avatar = {player.ps_client._avatar}", file=sys.stderr, flush=True)
-        print(f"[DEBUG] server_url = {player.ps_client._server_configuration.server_url}", file=sys.stderr, flush=True)
-        print(f"[DEBUG] websocket_url = {player.ps_client.websocket_url}", file=sys.stderr, flush=True)
+        print(f"[📝] 用户名: {player.username}", file=sys.stderr, flush=True)
+        print(f"[📡] 服务器: {player.ps_client._server_configuration.server_url}", file=sys.stderr, flush=True)
+        print(f"[🔌] WebSocket: {player.ps_client.websocket_url}", file=sys.stderr, flush=True)
 
-        # 对于 localhost + noguestsecurity，手动发送简化的登录命令
-        print(f"[DEBUG] 手动发送登录命令...", file=sys.stderr, flush=True)
-        await player.ps_client.send_message(f"/trn {player.username}")
+        # 检查 WebSocket 监听是否启动
+        if hasattr(player.ps_client, '_listening_coroutine'):
+            print(f"[DEBUG] WebSocket 监听协程存在: {player.ps_client._listening_coroutine}", file=sys.stderr, flush=True)
+        else:
+            print(f"[⚠️] WebSocket 监听协程不存在！", file=sys.stderr, flush=True)
 
-        # 手动设置 logged_in 事件（避免等待）
-        print(f"[DEBUG] 手动设置 logged_in 事件...", file=sys.stderr, flush=True)
-        player.ps_client.logged_in.set()
-        print(f"[DEBUG] logged_in 事件已设置", file=sys.stderr, flush=True)
+        print(f"[🔍] 正在等待挑战（将自动登录并接受任何玩家的挑战）...\n", file=sys.stderr, flush=True)
 
-        # 等待一小会让服务器处理登录
-        await asyncio.sleep(0.5)
+        # accept_challenges 会自动处理登录和接受挑战
+        # 不需要手动发送登录命令或设置 logged_in 事件
 
-        print(f"[🔍] 正在等待挑战...", file=sys.stderr, flush=True)
+        # 启用调试日志
+        import logging
+        player.logger.setLevel(logging.DEBUG)
 
-        # 等待来自玩家的挑战（接受任何玩家的挑战）
-        print(f"[DEBUG] 调用 accept_challenges() 等待挑战...", file=sys.stderr, flush=True)
         await player.accept_challenges(
             opponent=None,  # 接受任何玩家的挑战
             n_challenges=1

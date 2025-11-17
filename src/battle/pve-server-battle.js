@@ -10,7 +10,7 @@ const WebSocket = require('ws');
 const readline = require('readline');
 const { BattleState } = require('../battle_common/battle-state');
 const { BattleMessageHandler } = require('../battle_common/message-handler');
-const { displayChoices, displaySwitchChoices, displayBattleTeamStatus } = require('../battle_common/ui-display');
+const { displayChoices, displaySwitchChoices, displayBattleTeamStatus, displayTeamInfo } = require('../battle_common/ui-display');
 const { Translator } = require('../../dist/support/translator');
 
 // 初始化翻译器
@@ -41,6 +41,8 @@ function createReadline() {
 
 /**
  * 发送消息到服务器
+ * Pokemon Showdown 协议：消息格式为 "room|message"
+ * 如果 room 为空，则为 "|message"（全局命令）
  */
 function sendMessage(message, room = '') {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -48,7 +50,8 @@ function sendMessage(message, room = '') {
         return;
     }
 
-    const toSend = room ? `${room}|${message}` : message;
+    // Pokemon Showdown 协议：始终使用 "|" 分隔符
+    const toSend = `${room}|${message}`;
     console.log(`\x1b[94m\x1b[1m>>>\x1b[0m ${toSend}`);
     ws.send(toSend);
 }
@@ -57,9 +60,9 @@ function sendMessage(message, room = '') {
  * 处理 challstr 消息并登录
  */
 function handleChallstr(parts) {
-    console.log('\n🔐 收到认证挑战，等待PokeChamp启动...');
-    // 本地服务器不需要登录，直接使用 Guest 账号
-    // 什么都不做，等待 updateuser 消息
+    console.log('\n🔐 收到认证挑战，正在登录...');
+    // 对于本地服务器（noguestsecurity=true），需要手动发送 /trn 命令登录
+    sendMessage(`/trn ${PLAYER_USERNAME}`);
 }
 
 /**
@@ -78,8 +81,14 @@ function handleUpdateUser(parts) {
     const pokechampId = process.env.POKECHAMP_ID;
     if (pokechampId) {
         const opponentName = `pokechamp${pokechampId}`;
-        console.log(`🎯 正在挑战 ${opponentName}...\n`);
-        sendMessage(`/challenge ${opponentName}, ${BATTLE_FORMAT}`);
+        console.log(`🎯 目标对手: ${opponentName}`);
+        console.log(`⏳ 等待 5 秒让 PokéChamp AI 完全启动并准备接受挑战...\n`);
+
+        // 延迟发送挑战，确保 PokéChamp AI 已经完全启动并准备接受挑战
+        setTimeout(() => {
+            console.log(`📤 发送挑战给 ${opponentName}...\n`);
+            sendMessage(`/challenge ${opponentName}, ${BATTLE_FORMAT}`);
+        }, 5000);
     } else {
         console.log('🔍 正在搜索 gen9randombattle 对战...\n');
         sendMessage(`/search ${BATTLE_FORMAT}`);
@@ -103,17 +112,26 @@ async function handleBattleMessage(message) {
         const line = lines[i];
         if (!line || line.trim() === '') continue;
 
-        // console.log(`\x1b[92m\x1b[1m<<<\x1b[0m ${line}`);
+        console.log(`\x1b[92m\x1b[1m<<<\x1b[0m ${line}`);
+
+        // 检查是否是对战初始化消息
+        if (line.startsWith('|init|battle')) {
+            console.log('\n🎮 对战开始！\n');
+            // 初始化对战状态
+            battleState = new BattleState();
+            messageHandler = new BattleMessageHandler(battleState, translator);
+            continue;
+        }
 
         // 使用消息处理器更新状态
-        if (messageHandler) {
-            messageHandler.handleMessage(line, battleState);
+        if (messageHandler && battleState) {
+            messageHandler.handleMessage(line);
         }
 
         // 处理请求消息
         if (line.startsWith('|request|')) {
             const requestJson = line.substring('|request|'.length);
-            if (requestJson && requestJson !== 'null') {
+            if (requestJson && requestJson !== 'null' && battleState) {
                 try {
                     const request = JSON.parse(requestJson);
                     battleState.setCurrentRequest(request);
@@ -146,8 +164,10 @@ async function handleBattleMessage(message) {
             console.log(`\x1b[1m\x1b[36m第 ${turnNum} 回合\x1b[0m`);
             console.log('='.repeat(60));
 
-            // 显示双方队伍信息
-            displayTeamInfo(battleState);
+            // 显示双方队伍状态（使用适合服务器模式的显示方式）
+            if (battleState.player && battleState.opponent && battleState.currentRequest) {
+                displayBattleTeamStatus(battleState, battleState.currentRequest, translator);
+            }
 
             // 等待用户按回车继续
             await new Promise(resolve => {
@@ -168,7 +188,8 @@ async function handleBattleMessage(message) {
         }
 
         // 处理对战结束
-        if (line.startsWith('|win|') || line.startsWith('|tie')) {
+        if (line.startsWith('|win|') || line === '|tie') {
+            console.log(`\n[DEBUG] 对战结束消息: ${line}`);
             console.log('\n' + '='.repeat(60));
             if (line.startsWith('|win|')) {
                 const winner = line.split('|')[2];
@@ -209,11 +230,14 @@ async function handleForceSwitch() {
     const choice = await getPlayerChoice(request);
 
     // 发送选择
+    console.log(`\n📤 发送选择: ${choice}`);
     sendMessage(`/choose ${choice}`, currentBattleRoom);
 
     // 清除请求
     battleState.clearCurrentRequest();
     waitingForInput = false;
+
+    console.log('⏳ 等待服务器和对手响应...\n');
 }
 
 /**
@@ -229,15 +253,22 @@ async function handleActiveRequest() {
     // 显示可用选项
     displayChoices(request, battleState);
 
+    // 显示输入格式提示
+    console.log('\n📝 输入格式: move 1 或 m1 (使用第1个招式)');
+    console.log('           switch 2 或 s2 (切换到第2个宝可梦)');
+
     // 获取玩家输入
     const choice = await getPlayerChoice(request);
 
     // 发送选择
+    console.log(`\n📤 发送选择: ${choice}`);
     sendMessage(`/choose ${choice}`, currentBattleRoom);
 
     // 清除请求
     battleState.clearCurrentRequest();
     waitingForInput = false;
+
+    console.log('⏳ 等待服务器和对手响应...\n');
 }
 
 /**
@@ -264,14 +295,23 @@ function getPlayerChoice(request) {
  * 验证玩家选择
  */
 function validateChoice(input, request) {
-    // 解析输入
-    const match = input.match(/^([ms])(\d+)$/i);
-    if (!match) {
+    // 解析输入 - 支持两种格式：
+    // 1. "m1", "s2" (简写)
+    // 2. "move 1", "switch 2" (完整)
+    let action, index;
+
+    const shortMatch = input.match(/^([ms])(\d+)$/i);
+    const longMatch = input.match(/^(move|switch)\s+(\d+)$/i);
+
+    if (shortMatch) {
+        action = shortMatch[1].toLowerCase();
+        index = parseInt(shortMatch[2]);
+    } else if (longMatch) {
+        action = longMatch[1].toLowerCase() === 'move' ? 'm' : 's';
+        index = parseInt(longMatch[2]);
+    } else {
         return null;
     }
-
-    const action = match[1].toLowerCase();
-    const index = parseInt(match[2]);
 
     if (action === 'm') {
         // 招式选择
@@ -342,14 +382,6 @@ function handleMessage(data) {
                 }
             } else if (parts[1] === 'popup') {
                 console.log(`\n⚠️  服务器消息: ${parts.slice(2).join('|')}\n`);
-            } else if (parts[1] === 'init') {
-                // 对战初始化
-                if (parts[2] === 'battle') {
-                    console.log('\n🎮 对战开始！\n');
-                    // 初始化对战状态
-                    battleState = new BattleState();
-                    messageHandler = new BattleMessageHandler();
-                }
             } else {
                 // 其他消息 - 静默处理或记录
                 // console.log(`\x1b[90m${line}\x1b[0m`);
