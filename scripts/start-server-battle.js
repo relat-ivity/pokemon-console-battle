@@ -152,7 +152,7 @@ function startPythonService() {
             const pythonCmd = pythonCommands[commandIndex];
             log(colors.magenta, '[Python]', `尝试使用命令: ${pythonCmd}`);
 
-            pythonProcess = spawn(pythonCmd, ['pokechamp-ai-player.py', POKECHAMP_ID], {
+            pythonProcess = spawn(pythonCmd, ['src/ai/ai-player/pokechamp-ai-player.py', POKECHAMP_ID], {
                 cwd: path.join(__dirname, '..'),
                 stdio: ['ignore', 'pipe', 'pipe'],
                 shell: true

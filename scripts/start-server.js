@@ -10,33 +10,34 @@ const { spawn } = require('child_process');
 
 // Pokemon Showdown 服务器路径
 const showdownPath = path.join(__dirname, '..', 'node_modules', 'pokemon-showdown');
-const configPath = path.join(showdownPath, 'config', 'config.js');
+const projectRoot = path.join(__dirname, '..');
+const projectConfigPath = path.join(projectRoot, 'config', 'server-config.js');
+const showdownConfigPath = path.join(showdownPath, 'config', 'config.js');
 
-// 修改配置以支持本地开发
+// 使用项目配置文件
 console.log('⚙️  配置本地服务器...');
 try {
-    let config = fs.readFileSync(configPath, 'utf8');
-
-    // 启用 noguestsecurity 以支持不需要认证的本地登录
-    if (config.includes('exports.noguestsecurity = false')) {
-        config = config.replace(
-            'exports.noguestsecurity = false;',
-            'exports.noguestsecurity = true; // 自动启用以支持本地对战'
-        );
-        fs.writeFileSync(configPath, config, 'utf8');
-        console.log('✓ 已启用 noguestsecurity（本地开发模式）');
+    // 检查项目配置文件是否存在
+    if (fs.existsSync(projectConfigPath)) {
+        // 复制项目配置到 Pokemon Showdown 配置目录
+        const projectConfig = fs.readFileSync(projectConfigPath, 'utf8');
+        fs.writeFileSync(showdownConfigPath, projectConfig, 'utf8');
+        console.log(`✓ 已使用项目配置: ${projectConfigPath}`);
+    } else {
+        console.warn('⚠️  项目配置文件不存在，使用默认配置');
     }
 } catch (error) {
-    console.warn('⚠️  配置文件修改失败，使用默认配置:', error.message);
+    console.warn('⚠️  配置文件复制失败，使用默认配置:', error.message);
 }
 
 console.log('🚀 启动 Pokemon Showdown 本地服务器...');
 console.log(`📁 服务器路径: ${showdownPath}`);
+console.log(`📁 配置文件: ${projectConfigPath}`);
 console.log(`🌐 服务器地址: http://localhost:8000`);
 console.log('');
 
-// 启动服务器
-const server = spawn('node', ['pokemon-showdown', '8000'], {
+// 启动服务器（使用 --no-security 参数以支持本地开发）
+const server = spawn('node', ['pokemon-showdown', 'start', '--no-security'], {
 	cwd: showdownPath,
 	stdio: 'inherit',
 	shell: true

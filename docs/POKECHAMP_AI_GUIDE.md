@@ -20,7 +20,7 @@ Pokemon Showdown 本地服务器 (localhost:8000)
     │   - 处理玩家输入
     │   - 显示对战状态
     │
-    └── PokéChamp AI (src/ai/ai-support/pokechamp-service.py)
+    └── PokéChamp AI (src/ai/ai-player/pokechamp-ai-player.py)
         ├── poke-env 库
         │   - 连接到本地服务器
         │   - 维护完整的 Battle 对象
@@ -51,7 +51,7 @@ Pokemon Showdown 本地服务器 (localhost:8000)
    - 处理玩家输入和显示
    - 实现 Pokemon Showdown 协议
 
-3. **src/ai/ai-support/pokechamp-service.py** - PokéChamp AI 服务
+3. **src/ai/ai-player/pokechamp-ai-player.py** - PokéChamp AI 服务
    - 初始化 LLMPlayer
    - 连接到本地服务器
    - 使用完整的 Minimax + LLM 决策
@@ -153,7 +153,7 @@ npm run server
 
 # 终端 2 - 启动 PokéChamp Python 服务
 cd pokechamp-ai
-python src/ai/ai-support/pokechamp-service.py
+python src/ai/ai-player/pokechamp-ai-player.py
 
 # 终端 3 - 启动玩家客户端
 node src/battle/pve-server-battle.js
@@ -327,7 +327,7 @@ cd ..
 
 ### 调整 LLM 参数
 
-编辑 `src/ai/ai-support/pokechamp-service.py`:
+编辑 `src/ai/ai-player/pokechamp-ai-player.py`:
 
 ```python
 # 温度参数（0.0-1.0）

@@ -14,7 +14,8 @@ from pathlib import Path
 # 加载 .env 文件
 try:
     from dotenv import load_dotenv
-    env_path = Path(__file__).parent / '.env'
+    # 现在文件在 src/ai/ai-player/ 目录下，需要向上三级找到项目根目录
+    env_path = Path(__file__).parent.parent.parent.parent / '.env'
     if env_path.exists():
         load_dotenv(env_path)
         print(f"[✓] 已加载 .env 文件", file=sys.stderr, flush=True)
@@ -23,8 +24,8 @@ try:
 except ImportError:
     print("[⚠️] python-dotenv 未安装，将使用系统环境变量", file=sys.stderr, flush=True)
 
-# Add pokechamp to path
-pokechamp_path = Path(__file__).parent / 'pokechamp-ai'
+# Add pokechamp to path (向上三级到项目根目录)
+pokechamp_path = Path(__file__).parent.parent.parent.parent / 'pokechamp-ai'
 sys.path.insert(0, str(pokechamp_path))
 
 print(f"[DEBUG] pokechamp_path = {pokechamp_path}", file=sys.stderr, flush=True)

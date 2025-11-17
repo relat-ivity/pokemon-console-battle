@@ -74,7 +74,7 @@ npm run serverbattle
 
 ```bash
 npm run server
-python src/ai/ai-support/pokechamp-service.py
+python src/ai/ai-player/pokechamp-ai-player.py
 node src/battle/pve-server-battle.js
 ```
 

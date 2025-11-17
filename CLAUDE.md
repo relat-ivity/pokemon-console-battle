@@ -47,7 +47,6 @@ src/
 
 pokechamp-ai/
 ├── pokechamp/          # PokéChamp AI 核心库
-├── src/ai/ai-support/pokechamp-service.py # PokéChamp AI 服务（Python 子进程）
 └── ...                 # 其他 Python 依赖
 
 dist/                   # 编译后的 JavaScript 输出（自动生成）
@@ -83,7 +82,7 @@ tests/                  # 测试文件
    - 实现真正的 Minimax + LLM 混合决策
    - 入口函数：`startClient()`
    - **仅支持与 PokéChamp AI 对战**
-   - 需要配合 `scripts/start-server.js` 和 `src/ai/ai-support/pokechamp-service.py` 使用
+   - 需要配合 `scripts/start-server.js` 和 `src/ai/ai-player/pokechamp-ai-player.py` 使用
 
 **核心模块文件：**
 
@@ -130,19 +129,21 @@ tests/                  # 测试文件
 
 这些 AI 仅在服务器对战模式中可用：
 
-- **PokéChamp AI**（通过 `src/ai/ai-support/pokechamp-service.py` 和 `pokechamp-ai/` 库）
+- **PokéChamp AI**（通过 `src/ai/ai-player/pokechamp-ai-player.py` 和 `pokechamp-ai/` 库）
+  - 独立的 Python AI 玩家，直接连接到 Pokemon Showdown 服务器
   - Minimax 树搜索（K=2）+ LLM 混合决策
   - 84% 胜率（ICML 2025）
-  - 使用 poke-env 连接到本地 Pokemon Showdown 服务器
+  - 使用 poke-env 库连接到本地 Pokemon Showdown 服务器 (localhost:8000)
   - 需要 `OPENROUTER_API_KEY` 环境变量
   - 支持多种免费和付费 LLM 模型（默认使用免费的 DeepSeek）
   - **注意：** PokéChamp AI 需要完整的 Battle 对象，因此只能在服务器模式下使用
+  - 等待玩家发起挑战后自动应战
 
-**历史遗留：**
-- **ai-player/pokechamp-ai-player.ts**：旧版本的 PokéChamp AI 集成（已废弃）
-  - 尝试通过 Python 子进程运行 PokéChamp LLMPlayer
-  - 由于无法提供完整的 Battle 对象，无法使用真正的 `choose_move()` 方法
-  - 现已被服务器对战模式取代
+**历史遗留（已删除）：**
+- **ai-support/pokechamp-service.py**：旧版本的 PokéChamp AI 服务（已删除）
+  - 尝试通过 stdin/stdout 与 Node.js 通信
+  - 由于循环导入问题和无法提供完整的 Battle 对象而废弃
+  - 已被 `pokechamp-ai-player.py` 独立玩家模式取代
 
 ### 支持模块 (`src/support/`)
 
@@ -206,7 +207,7 @@ npm run server
 
 **终端 2 - 启动 PokéChamp Python 服务：**
 ```bash
-python src/ai/ai-support/pokechamp-service.py
+python src/ai/ai-player/pokechamp-ai-player.py
 ```
 确保在 `.env` 文件中设置了 `OPENROUTER_API_KEY`
 
@@ -424,8 +425,8 @@ POKECHAMP_LLM_BACKEND=deepseek/deepseek-chat-v3.1:free  # 可选，这是默认�
 - **新增 PokéChamp AI**：集成了 ICML 2025 获奖的高级对战 AI
 - **环境变量配置**：改用 `.env` 文件配置（`OPENROUTER_API_KEY`、`POKECHAMP_LLM_BACKEND`）
 - **免费 LLM 支持**：默认使用免费的 `deepseek/deepseek-chat-v3.1:free` 模型
-- **Python 子进程**：通过 `src/ai/ai-support/pokechamp-service.py` 运行 PokéChamp LLMPlayer
-- **进程间通信**：使用 JSON 格式在 Node.js 和 Python 之间通信
+- **独立 Python 玩家**：通过 `src/ai/ai-player/pokechamp-ai-player.py` 独立连接服务器
+- **架构优化**：移除了有循环导入问题的 `pokechamp-service.py`，改用独立玩家模式
 - 详见 `docs/POKECHAMP_AI_GUIDE.md` 了解完整文档
 
 ### 请求处理机制修复
