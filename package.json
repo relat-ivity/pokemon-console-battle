@@ -1,11 +1,7 @@
 {
   "name": "pokemon-console-battle",
-  "version": "1.0.0",
+  "version": "0.3.0",
   "description": "可以在命令行和AI进行第九代随机六六单打",
-  "main": "src/index.js",
-  "bin": {
-    "pokemon-battle": "./index.js"
-  },
   "scripts": {
     "battle": "npm run build && node src/battle/pve-battle.js",
     "serverbattle": "npm run build && node scripts/start-server-battle.js",
