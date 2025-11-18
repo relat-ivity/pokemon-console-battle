@@ -114,29 +114,25 @@ ICML 2025 获奖的强大 AI，采用 Minimax 树搜索 + LLM 混合策略
 export DEEPSEEK_API_KEY="你的API密钥"
 npm run battle
 
-# 选择菜单中选择 "2. DeepSeek AI"
+# 选择菜单中选择 "1. DeepSeek AI"
 ```
 
 详细配置请查看 [DeepSeek AI 文档](./docs/DEEPSEEK_AI_GUIDE.md)
 
 #### 3. Master AI 🥇 (强大本地AI) **本地模式**
 高级本地策略AI，无需API密钥
-- **性能**: 强（70% 胜率 vs 智能AI）
-- **速度**: 快速（2秒/回合）
 
 ```bash
 npm run battle
-# 选择菜单中选择 "3. Master AI (强大对手)"
+# 选择菜单中选择 "2. Master AI (强大对手)"
 ```
 
 #### 4. 本地智能AI 🧠 (智能AI) **本地模式**
 基于属性克制和招式评分的本地智能AI
-- **性能**: 中等（60% 胜率 vs 随机AI）
-- **速度**: 快速（1秒/回合）
 
 ```bash
 npm run battle
-# 选择菜单中选择 "4. 本地智能AI"
+# 选择菜单中选择 "3. 本地智能AI"
 ```
 
 #### 5. 随机AI 🎲 (测试用) **本地模式**
@@ -144,22 +140,8 @@ npm run battle
 
 ```bash
 npm run battle
-# 选择菜单中选择 "5. 随机AI"
+# 选择菜单中选择 "4. 随机AI"
 ```
-
-### AI 难度对比表
-
-| 特性 | 随机AI | 智能AI | Master | DeepSeek | PokéChamp |
-|------|---------|---------|---------|----------|-----------|
-| **对战模式** | 本地 | 本地 | 本地 | 本地 | **服务器** |
-| 基础策略 | ❌ | ✅ | ✅ | ✅ | ✅ |
-| 属性克制 | ❌ | ✅ | ✅ | ✅ | ✅ |
-| 招式评分 | ❌ | ✅ | ✅ | ✅ | ✅ |
-| LLM推理 | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Minimax搜索 | ❌ | ❌ | ❌ | ❌ | ✅ |
-| 胜率 | ~20% | ~60% | ~70% | ~80% | ~84% |
-| 成本/对战 | 免费 | 免费 | 免费 | $0.02 | $0.40 |
-| 启动命令 | `npm run battle` | `npm run battle` | `npm run battle` | `npm run battle` | 见上文 |
 
 ## 📸 对战示例
 ```txt
@@ -173,14 +155,13 @@ $ node pve-battle.js
     查看队伍: team  (查看所有宝可梦状态)
 
 请选择对手：
-    1. PokéChamp AI (最强！)
-    2. DeepSeek AI
-    3. Master AI (强大对手)
-    4. 本地智能AI
-    5. 随机AI
+    1. DeepSeek AI
+    2. Master AI
+    3. 本地智能AI
+    4. 随机AI
 请输入对手编号:1
 
-✓ 已创建对手: PokéChamp AI
+✓ 已创建对手: DeepSeek AI
 ✓ AI已启动
 
 按回车开始生成队伍...
@@ -256,7 +237,7 @@ Player 的队伍
 
 战斗开始！
 
-等待PokéChamp选择首发宝可梦...
+等待DeepSeek选择首发宝可梦...
 
 【你】 派出了 千面避役 (HP: 156/156)
 
@@ -304,7 +285,7 @@ Player 的队伍
    2.电磁波 [电] 命中：90% (PP: 32/32) 描述：Paralyzes the target.
    3.地球上投 [格斗] 命中：100% (PP: 32/32) 描述：Does damage equal to the user's level.
    4.生蛋 [一般] 命中：-- (PP: 8/8) 描述：Heals the user by 50% of its max HP.
-Your choice: team
+你的选择: team
 
 对手剩余宝可梦: 沙螺蟒 普隆隆姆 轰擂金刚猩 藏饱栗鼠 沙铁皮 电击魔兽
 你的宝可梦:
