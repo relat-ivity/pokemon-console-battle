@@ -330,8 +330,9 @@ Player 的队伍
 
 ## 📚 文档
 
-- [PokéChamp AI 详细配置指南](./POKECHAMP_AI_GUIDE.md) - 学习如何配置 10+ 种 LLM 后端
-- [Claude.md](./CLAUDE.md) - 项目架构和开发指南
+- [PokéChamp AI配置指南](./docs/POKECHAMP_AI_GUIDE.md)
+- [DeepSeek AI配置指南](./docs/DEEPSEEK_AI_GUIDE.md)
+- [Claude.md](./CLAUDE.md) - Claude项目架构和开发指南
 
 ## 🤝 贡献
 
