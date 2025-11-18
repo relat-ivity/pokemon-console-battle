@@ -86,10 +86,11 @@ tests/                  # 测试文件
 
 **核心模块文件：**
 
-3. **message-handler.js** (537 行)
-   - 解析 20+ 种 Pokemon Showdown 战斗消息类型
+3. **message-handler.js** (1638 行)
+   - 解析 50+ 种 Pokemon Showdown 战斗消息类型
    - 根据战斗事件更新游戏状态（切换、招式、伤害、倒下、状态等）
    - `BattleMessageHandler` 类通过 `handle*` 方法处理各类消息
+   - 支持所有 Major Actions 和 Minor Actions 消息
    - 将宝可梦名称和招式翻译为中文
 
 4. **battle-state.js** (412 行)
@@ -303,7 +304,15 @@ Pokemon Showdown 协议使用管道分隔的消息：
 
 ### message-handler.js
 - `handleMessage()` - 所有消息类型的分派器
-- `handleSwitch()`、`handleMove()`、`handleFaint()`、`handleDamage()` 等 - 消息处理器
+- Major Actions: `handleSwitch()`, `handleDrag()`, `handleMove()`, `handleCant()`, `handleFaint()`, `handleDetailsChange()`, `handleFormeChange()`, `handleReplace()`, `handleSwap()`
+- Minor Actions - 失败/阻挡: `handleFail()`, `handleBlock()`, `handleNoTarget()`, `handleMiss()`, `handleImmune()`
+- Minor Actions - HP/状态: `handleDamage()`, `handleHeal()`, `handleSetHP()`, `handleStatus()`, `handleCureStatus()`, `handleCureTeam()`
+- Minor Actions - 能力变化: `handleBoost()`, `handleUnboost()`, `handleSetBoost()`, `handleSwapBoost()`, `handleInvertBoost()`, `handleClearBoost()`, `handleClearAllBoost()`, `handleClearPositiveBoost()`, `handleClearNegativeBoost()`, `handleCopyBoost()`
+- Minor Actions - 场地效果: `handleSideStart()`, `handleSideEnd()`, `handleSwapSideConditions()`, `handleWeather()`, `handleFieldStart()`, `handleFieldEnd()`
+- Minor Actions - 异常状态: `handleStart()`, `handleEnd()`
+- Minor Actions - 道具/特性: `handleItem()`, `handleEndItem()`, `handleAbility()`, `handleEndAbility()`
+- Minor Actions - 特殊形态: `handleTransform()`, `handleMega()`, `handlePrimal()`, `handleBurst()`, `handleZPower()`, `handleZBroken()`, `handleTerastallize()`
+- Minor Actions - 杂项: `handleActivate()`, `handleHint()`, `handleCenter()`, `handleMessageText()`, `handleCombine()`, `handleWaiting()`, `handlePrepare()`, `handleMustRecharge()`, `handleHitCount()`, `handleSingleMove()`, `handleSingleTurn()`
 
 ### battle-state.js
 - `switchPokemon()` - 切换时更新状态
