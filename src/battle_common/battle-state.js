@@ -175,6 +175,13 @@ class PokemonState {
 	}
 
 	/**
+	 * 设置能力等级到特定值
+	 */
+	setBoost(stat, amount) {
+		this.boosts[stat] = amount;
+	}
+
+	/**
 	 * 清除所有能力变化
 	 */
 	clearBoosts() {
@@ -282,6 +289,13 @@ class PlayerState {
 	 */
 	unboost(stat, amount) {
 		this.boosts[stat] = (this.boosts[stat] || 0) - amount;
+	}
+
+	/**
+	 * 设置能力等级到特定值
+	 */
+	setBoost(stat, amount) {
+		this.boosts[stat] = amount;
 	}
 
 	/**
