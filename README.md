@@ -51,7 +51,9 @@ npm run build
 
 本项目支持**两种对战模式**：
 
-#### 模式 1：本地对战模式（推荐新手）⭐
+#### 模式 1：本地对战模式
+
+不建立服务器，使用Showdown SDK开发
 
 ✅ 支持 4 种 AI：DeepSeek AI、Master AI、智能 AI、随机 AI
 
@@ -62,6 +64,8 @@ node src/battle/pve-battle.js
 ```
 
 #### 模式 2：服务器对战模式
+
+建立本地Showdown服务器，在服务器上创建对战房间
 
 ✅ 目前支持和PokeChamp AI对战。
 
