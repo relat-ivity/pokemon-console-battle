@@ -55,7 +55,7 @@ npm run build
 
 不建立服务器，使用Showdown SDK开发
 
-✅ 支持 4 种 AI：DeepSeek AI、Master AI、智能 AI、随机 AI
+✅ 支持 4 种 AI：DeepSeek AI、本地大师AI、本地智能 AI、随机 AI
 
 ```bash
 npm run battle
@@ -158,10 +158,12 @@ $ node pve-battle.js
 
 请选择对手：
     1. DeepSeek AI
-    2. Master AI
+    2. 本地大师AI
     3. 本地智能AI
     4. 随机AI
 请输入对手编号:1
+
+✓ 对战格式：gen9randombattle
 
 ✓ 已创建对手: DeepSeek AI
 ✓ AI已启动
