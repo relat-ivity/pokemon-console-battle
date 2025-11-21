@@ -91,15 +91,7 @@ function generateValidTeam(format) {
 		team = Sim.Teams.generate('gen9randombattle');
 	}
 
-	// 标准化队伍：50级，努力值85，个体值31，性格Hardy
-	const normalizedTeam = team.map(pokemon => ({
-		...pokemon,
-		level: 50,
-		nature: 'Hardy',
-		ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 },
-		evs: { hp: 85, atk: 85, def: 85, spa: 85, spd: 85, spe: 85 }
-	}));
-	return { team: normalizedTeam, fileName: null };
+	return { team: team, fileName: null };
 }
 
 /**
@@ -222,7 +214,7 @@ function createPlayerChoiceHandler(battleState, streams, ai) {
 					await handlePlayerChoice();
 				} else {
 					// 通知 AI 玩家的选择（用于作弊功能）
-					if (ai && typeof ai.setPlayerChoice === 'function') {
+					if (!battleState.currentRequest.forceSwitch && ai && typeof ai.setPlayerChoice === 'function') {
 						ai.setPlayerChoice(choice);
 					}
 					// 直接写入选择，不需要 >p1 前缀
@@ -382,7 +374,7 @@ async function startPVEBattle() {
 	// 创建 AI 对手
 	// 获取 PokéChamp LLM 后端配置
 	const pokechampBackend = process.env.POKECHAMP_LLM_BACKEND || 'deepseek/deepseek-chat-v3.1:free';
-	const ai = AIPlayerFactory.createAI(aiType, streams.p2, debug_mode, p1team, pokechampBackend);
+	const ai = AIPlayerFactory.createAI(aiType, streams.p2, debug_mode,p2team, p1team, pokechampBackend);
 
 	// 获取实际的 AI 名字（如果降级会显示降级后的名字）
 	let actualOpponentName = opponent;

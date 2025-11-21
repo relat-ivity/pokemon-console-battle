@@ -39,10 +39,11 @@ export class DeepSeekAIPlayer extends AIPlayer {
 	private conversationHistory: Array<{ role: string; content: string }> = [];
 	private lastRequest: SwitchRequest | TeamPreviewRequest | MoveRequest | null = null;
 	private opponentTeam: { [name: string]: OpponentPokemon } = {};
+	private teamData: any[] | null = null;
 	private opponentTeamData: any[] | null = null;
 
 	// debug设置
-	private debugmode: boolean = false;
+	private debugmode: boolean = true;
 
 	// 场地状态跟踪
 	private weather: string | null = null;
@@ -64,12 +65,14 @@ export class DeepSeekAIPlayer extends AIPlayer {
 
 	constructor(
 		playerStream: any,
+		teamData: any[] | null = null,
 		opponentTeamData: any[] | null = null,
 		debug = false
 	) {
 		super(playerStream, debug);
 		this.apiKey = process.env.DEEPSEEK_API_KEY || '';
 		this.translator = Translator.getInstance();
+		this.teamData = teamData;
 		this.opponentTeamData = opponentTeamData;
 
 		// 从环境变量读取作弊概率配置
@@ -629,19 +632,20 @@ export class DeepSeekAIPlayer extends AIPlayer {
 				actions += '\n';
 			});
 
-			const prompt = `${battleState}\n\n${actions}\n\n你收到了切换宝可梦的请求，请选择下一个出战的宝可梦。考虑属性克制、HP状况、特性和场上局势。只输出指令，不要解释。格式：switch X（X为宝可梦编号）`;
-
-			const systemPrompt = `你是一个宝可梦对战专家。根据当前战况，选择胜率最高的宝可梦出战。
-
-${this.getBaseSystemPrompt()}
-
+			const prompt = `当前要切换宝可梦。指令格式：switch X（X为宝可梦编号）
 【考虑因素】
-1. 属性克制和速度优势（比较种族值）
+1. 注意对手有没有克制自己的招式，以及自己有没有克制对手的招式，和速度优势
 2. HP状况和异常状态
 3. 特性和道具配合
 4. 队伍配合和场上局势
 
-请只回答 switch X 格式，X为宝可梦编号`;
+下面是当前双方状态：
+${battleState}
+
+下面是可选操作
+${actions}`;
+
+			const systemPrompt = this.getBaseSystemPrompt();
 
 			const aiResponse = await this.callDeepSeek(prompt, systemPrompt);
 
@@ -685,24 +689,24 @@ ${this.getBaseSystemPrompt()}
 
 			let extraInfo = '';
 			if (playerTeamInfo) {
-				extraInfo = `\n\n【重要情报】对手选择的首发顺序是: ${playerTeamInfo}\n请根据对手的首发选择做出最优反制！\n`;
+				extraInfo = `【重要情报】对手的队伍顺序是：${playerTeamInfo}，第一个是首发宝可梦\n`;
 			}
 
-			const prompt = `${battleState}${extraInfo}\n\n请分析双方队伍，选择最优的首发宝可梦顺序。考虑属性克制、速度、特性和招式配合。请直接回答顺序，格式：team 123456（数字为宝可梦编号，首发在最前）`;
-
-			const systemPrompt = `你是一个宝可梦对战专家。根据双方队伍信息，选择胜率最高的出战顺序。
-
-${this.getBaseSystemPrompt()}
-
+			const prompt = `当前要设置队伍首发。指令格式：team 123456（数字为宝可梦编号，首发在最前）
 【考虑因素】
-0. 【**重要**】如果有用户操作的信息，请优先通过克制对方的出场顺序、使用针对对手首发的宝可梦或者抓住时机强化来反制对手的选择
+0. 【**重要**】你可能会得到对方的首发情报，请优先通过克制对方的出场顺序、使用针对对手首发的宝可梦或者抓住时机强化来反制对手的选择
 1. 首发宝可梦的队伍配合能力
 2. 速度优势（速度种族值+26）
 3. 属性克制和招式威力
 4. 特性和道具配合
 5. 攻守平衡
 
-请只回答 team 后面跟6个数字的顺序，如：team 123456。不许返回空值，也不要返回任何解释`;
+下面是当前双方宝可梦情报：
+${battleState}
+
+${extraInfo}`;
+
+			const systemPrompt = this.getBaseSystemPrompt();
 
 			const aiResponse = await this.callDeepSeek(prompt, systemPrompt);
 			if (aiResponse) {
@@ -792,27 +796,28 @@ ${this.getBaseSystemPrompt()}
 
 			// 如果有用户选择信息（作弊模式），加入提示
 			if (playerChoiceInfo) {
-				extraInfo += `\n【重要情报】对手选择了: ${playerChoiceInfo}\n请根据对手的选择做出最优反制！\n`;
+				extraInfo += `【重要情报】对手选择了，注意对手move选择哪个招式，switch选择哪个宝可梦: ${playerChoiceInfo}`;
 			}
 
-			const prompt = `${battleState}${extraInfo}\n\n${actions}\n\n请分析当前战况，选择最佳行动。只输出指令，不要解释。指令格式：move X（使用第X个招式）、move X terastallize（使用第X个招式并太晶化）、switch X（切换到第X个宝可梦）`;
-
-			const systemPrompt = `你是一个宝可梦对战专家。现在你要进行六六单打，你需要根据当前战场状态，选择胜率最高的操作。
-
-${this.getBaseSystemPrompt()}
-
+			const prompt = `当前要选择下一回合的操作。指令格式：move X（使用第X个招式）、move X terastallize（使用第X个招式并太晶化）、switch X（切换到第X个宝可梦）
 【考虑因素】
-0. 【**重要**】如果有用户的操作信息，请优先通过太晶化反制、换人联攻联防、使用针对招式或者抓住时机强化来反制对手的选择
-1. 队友配合：考虑谁辅助谁输出
-2. 伤害计算：根据种族值、威力、属性克制精确计算伤害
-3. 速度判断：比较双方速度种族值，判断先后手
+0. 【**重要**】如果获得了对手的这回合的操作信息，请优先通过太晶化反制、换人联攻联防、使用针对招式或者抓住时机强化来反制对手的选择
+1. 注意伤害计算：根据上面的伤害公式计算伤害和承受伤害
+2. 注意对方有没有克制自己的招式，以及自己有没有克制对方的招式
+3. 注意根据双方速度个体值判断先后手，考虑会不会被对方先手击败
 4. 剩余宝可梦状态和HP
-5. 场地效果和天气影响
-6. 太晶化时机
+5. 注意场地效果和天气影响
+6. 判断是否需要使用太晶化进攻或者防守
 7. 预判对手行为
-8. 换人时机
+下面是当前双方状态：
+${battleState}
 
-请务必只回答指令格式（X是数字）：招式指令为move X 或 move X terastallize，交换宝可梦指令为switch X`;
+下面是可选操作
+${actions}
+
+${extraInfo}`;
+
+			const systemPrompt = this.getBaseSystemPrompt();
 
 			const aiResponse = await this.callDeepSeek(prompt, systemPrompt);
 
@@ -917,6 +922,12 @@ ${this.getBaseSystemPrompt()}
 			const speciesName = p.ident.split(': ')[1];
 			const speciesCN = this.translate(speciesName, 'pokemon');
 			const speciesData = Dex.species.get(speciesName);
+			let pokemonData: AnyObject | undefined = undefined;
+			if(this.teamData) {	
+				pokemonData = this.teamData.find(mon => {
+					return this.isPokemonSame(mon.species, speciesName);
+				});
+			}
 
 			state += `${i + 1}. ${speciesCN}`;
 
@@ -926,6 +937,11 @@ ${this.getBaseSystemPrompt()}
 			if (speciesData.types) {
 				const typesCN = speciesData.types.map((t: string) => this.translate(t, 'types'));
 				state += ` ${isTeamPreview ? '' : '属性:'}[${typesCN.join('/')}]`;
+			}
+
+			// 显示等级
+			if (pokemonData && pokemonData.level) {
+				state += ` 等级:${pokemonData.level}`;
 			}
 
 			// 添加种族值信息
@@ -976,6 +992,21 @@ ${this.getBaseSystemPrompt()}
 				if (this.myTerastallizedPokemon === speciesName) {
 					state += ` [已太晶化]`;
 				}
+			}
+
+			state += '\n';
+
+			if (pokemonData && pokemonData.nature) {
+				const natureCN = this.translate(pokemonData.nature, 'natures');
+				state += `   性格: ${natureCN}`;
+			}
+
+			if (pokemonData && pokemonData.ivs) {
+				state += ` 个体值:[HP${pokemonData.ivs.hp}/攻${pokemonData.ivs.atk}/防${pokemonData.ivs.def}/特攻${pokemonData.ivs.spa}/特防${pokemonData.ivs.spd}/速${pokemonData.ivs.spe}]`;
+			}
+
+			if (pokemonData && pokemonData.evs) {
+				state += ` 努力值:[HP${pokemonData.evs.hp}/攻${pokemonData.evs.atk}/防${pokemonData.evs.def}/特攻${pokemonData.evs.spa}/特防${pokemonData.evs.spd}/速${pokemonData.evs.spe}]`;
 			}
 
 			state += '\n';
@@ -1071,6 +1102,11 @@ ${this.getBaseSystemPrompt()}
 					state += ` 种族值:[HP${stats.hp}/攻${stats.atk}/防${stats.def}/特攻${stats.spa}/特防${stats.spd}/速${stats.spe}]`;
 				}
 
+				// 显示等级
+				if (p.level) {
+					state += ` 等级:${p.level}`;
+				}
+
 				// 队伍预览时不显示HP和状态
 				if (!isTeamPreview) {
 					const trackedPokemon = this.opponentTeam[speciesName];
@@ -1117,6 +1153,21 @@ ${this.getBaseSystemPrompt()}
 						state += ` [已太晶化]`;
 					}
 				}
+				
+				state += '\n';
+				
+				if (p.nature) {
+					const natureCN = this.translate(p.nature, 'natures');
+					state += `   性格: ${natureCN}`;
+				}
+
+				if (p.ivs) {
+					state += ` 个体值:[HP${p.ivs.hp}/攻${p.ivs.atk}/防${p.ivs.def}/特攻${p.ivs.spa}/特防${p.ivs.spd}/速${p.ivs.spe}]`;
+				}
+
+				if (p.evs) {
+					state += ` 努力值:[HP${p.evs.hp}/攻${p.evs.atk}/防${p.evs.def}/特攻${p.evs.spa}/特防${p.evs.spd}/速${p.evs.spe}]`;
+				}
 
 				state += '\n';
 
@@ -1145,18 +1196,26 @@ ${this.getBaseSystemPrompt()}
 	 * 获取通用的系统提示词基础部分
 	 */
 	private getBaseSystemPrompt(): string {
-		return `【对战规则】
-- 所有宝可梦等级50级
-- 性格：勤奋（无属性加成/减成）
-- 个体值(IV)每项31
-- 努力值(EV)每项85
-
+		return `你是一名宝可梦对战专家，精通单打对战策略。
+【任务】
+现在是宝可梦全球对战的决赛现场，你的目标是夺得冠军。这是你最后一次参加比赛，每一步都务必谨慎思考，如果输掉这场比赛你就再也没机会参加了。
+你需要根据计算公式和克制关系、现有的情报以及各种列出的考虑因素，选择胜率最高的行动方案。
+【输出格式】只输出一句指令，并在后面加上一句解释，后面再加一句话翻译一下对手的操作是什么
+【重要】你有时候可以获得对手的操作，请你根据对手的操作信息做出压制。
 【能力值计算公式(根据宝可梦规则)】
-HP = 种族值 + 86
-其他能力 = 种族值 + 31
+HP = (2 × 种族值 + 个体值 + 努力值 ÷ 4) × 等级 ÷ 100 + 等级 + 10
+其他能力 = ( (2 × 种族值 + 个体值 + 努力值 ÷ 4) × 等级 ÷ 100 + 5 ) × 性格修正
+
+【性格修正】
+- adamant: atk×1.1, spa×0.9; lonely: atk×1.1, def×0.9; brave: atk×1.1, spe×0.9; naughty: atk×1.1, spd×0.9;  
+- bold: def×1.1, atk×0.9; relaxed: def×1.1, spe×0.9; impish: def×1.1, spa×0.9; lax: def×1.1, spd×0.9;  
+- timid: spe×1.1, atk×0.9; hasty: spe×1.1, def×0.9; jolly: spe×1.1, spa×0.9; naive: spe×1.1, spd×0.9;  
+- modest: spa×1.1, atk×0.9; mild: spa×1.1, def×0.9; quiet: spa×1.1, spe×0.9; rash: spa×1.1, spd×0.9;  
+- calm: spd×1.1, atk×0.9; gentle: spd×1.1, def×0.9; sassy: spd×1.1, spe×0.9; careful: spd×1.1, spa×0.9;  
+- hardy: —; docile: —; serious: —; bashful: —; quirky: —;
 
 【伤害计算公式(根据宝可梦规则)】
-伤害 = ((等级×2÷5+2) × 威力 × (特)攻击÷(特)防御 ÷50 + 2) × 修正值
+伤害 = 伤害 = ( ((2 × 等级 ÷ 5 + 2) × 威力 × (攻击或特攻 ÷ 防御或特防)) ÷ 50 + 2 ) × 修正值
 修正值包括：
 - 属性一致加成(STAB)：×1.5
 - 属性克制：×2(效果绝佳) ×0.5(效果不好) ×0.25(双重抗性) ×0(无效)
@@ -1165,28 +1224,62 @@ HP = 种族值 + 86
 - 太晶化：属性一致时×2.0，非一致时×1.5
 
 【属性克制关系】
-效果绝佳(×2)：
-- 火→草/冰/虫/钢  水→火/地/岩  草→水/地/岩  电→水/飞
-- 冰→草/地/飞/龙  格斗→普/冰/岩/恶/钢  毒→草/妖  地→火/电/毒/岩/钢
-- 飞→草/格斗/虫  超能→格斗/毒  虫→草/超能/恶  岩→火/冰/飞/虫
-- 幽灵→超能/幽灵  龙→龙  恶→超能/幽灵  钢→冰/岩/妖  妖→格斗/龙/恶
+1. 你**只能使用我提供的属性克制关系表**来判断攻击效果。  
+2. 双属性宝可梦的防守效果，按**两个属性的倍率相乘**计算。  
+3. 对于表格中没有列出的属性组合，**一律视为等效 1 倍**（即普通效果）。
 
-效果不好(×0.5)：
-- 火→火/水/岩/龙  水→水/草/龙  草→火/草/毒/飞/虫/龙/钢
-- 电→电/草/龙  冰→火/水/冰/钢  格斗→毒/飞/超能/虫/妖
-- 毒→毒/地/岩/幽灵  地→草/虫  飞→电/岩/钢  超能→超能/钢
-- 虫→火/格斗/毒/飞/幽灵/钢/妖  岩→格斗/地/钢  幽灵→恶
-- 龙→钢  恶→格斗/恶/妖  钢→火/水/电/钢  妖→毒/钢
+#### 效果绝佳 ×2：
+火→草/冰/虫/钢  
+水→火/地/岩  
+草→水/地/岩  
+电→水/飞  
+冰→草/地/飞/龙  
+格斗→普/冰/岩/恶/钢  
+毒→草/妖  
+地→火/电/毒/岩/钢  
+飞→草/格斗/虫  
+超能→格斗/毒  
+虫→草/超能/恶  
+岩→火/冰/飞/虫  
+幽灵→超能/幽灵  
+龙→龙  
+恶→超能/幽灵  
+钢→冰/岩/妖  
+妖→格斗/龙/恶  
 
-无效(×0)：
-- 普/格斗→幽灵  地→飞  幽灵→普  电→地  超能→恶  龙→妖`;
+#### 效果不好 ×0.5：
+火→火/水/岩/龙  
+水→水/草/龙  
+草→火/草/毒/飞/虫/龙/钢  
+电→电/草/龙  
+冰→火/水/冰/钢  
+格斗→毒/飞/超能/虫/妖  
+毒→毒/地/岩/幽灵  
+地→草/虫  
+飞→电/岩/钢  
+超能→超能/钢  
+虫→火/格斗/毒/飞/幽灵/钢/妖  
+岩→格斗/地/钢  
+幽灵→恶  
+龙→钢  
+恶→格斗/恶/妖  
+钢→火/水/电/钢  
+妖→毒/钢  
+
+#### 无效 ×0：
+普/格斗→幽灵  
+地→飞  
+幽灵→普  
+电→地  
+超能→恶  
+龙→妖`;
 	}
 
 	/**
 	 * 调用 DeepSeek API
 	 */
 	private async callDeepSeek(prompt: string, systemPrompt: string): Promise<string | null> {
-		if (this.debugmode) console.log('CallDeepSeek: ', prompt, systemPrompt);
+		if (this.debugmode) console.log('CallDeepSeek: ', systemPrompt , '\n', prompt);
 		if (!this.apiKey) {
 			return null;
 		}
@@ -1203,7 +1296,7 @@ HP = 种族值 + 86
 				{
 					model: 'deepseek-chat',
 					messages: messages,
-					temperature: 0.7,
+					temperature: 0,
 					max_tokens: 500
 				},
 				{
@@ -1211,7 +1304,7 @@ HP = 种族值 + 86
 						'Content-Type': 'application/json',
 						'Authorization': `Bearer ${this.apiKey}`
 					},
-					timeout: 10000
+					timeout: 60000
 				}
 			);
 
@@ -1286,4 +1379,30 @@ HP = 种族值 + 86
 		}
 		return result;
 	}
+
+	private normalizeSpeciesName(name: string): string {
+		if (!name) return name;
+
+		// 首先尝试从括号中提取基础种类名
+		const bracketMatch = name.match(/\(([^)]+)\)/);
+		if (bracketMatch) {
+			// 如果有括号，使用括号内的名称作为基础种类
+			return bracketMatch[1].trim();
+		}
+
+		// 如果没有括号，去掉地区形态后缀
+		// 常见的后缀模式：-Hisui, -Alola, -Galar, -Paldea, -Yellow, -Red, -Blue, -* 等
+		// 只要名称包含 -，就取第一部分作为基础名称
+		if (name.includes('-')) {
+			return name.split('-')[0];
+		}
+
+		return name;
+	}
+
+	private isPokemonSame(name1: string, name2: string): boolean {
+	const normalized1 = this.normalizeSpeciesName(name1);
+	const normalized2 = this.normalizeSpeciesName(name2);
+	return normalized1 === normalized2;
+}
 }
