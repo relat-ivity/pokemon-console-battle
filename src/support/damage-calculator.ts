@@ -201,6 +201,45 @@ export class DamageCalculator {
 		const attackerSpecies = Dex.species.get(attacker.species);
 		const defenderSpecies = Dex.species.get(defender.species);
 
+		// 固定伤害招式（地球上投、黑夜魔影）
+		const moveNameLower = moveName.toLowerCase().replace(/\s+/g, '');
+		if (moveNameLower === "seismictoss" || moveNameLower === "nightshade") {
+			// 需要检查属性免疫
+			const defenderSpecies = Dex.species.get(defender.species);
+			let defenderTypes = defenderSpecies.types;
+
+			// 如果防守方太晶化了，属性变为太晶属性
+			if (defender.isTerastallized && defender.teraType) {
+				defenderTypes = [defender.teraType];
+			}
+
+			// 地球上投是格斗系，对幽灵系免疫
+			// 黑夜魔影是幽灵系，对普通系免疫
+			const moveType = moveNameLower === "seismictoss" ? "Fighting" : "Ghost";
+			const typeEffectiveness = this.getTypeEffectiveness(moveType, defenderTypes);
+
+			if (typeEffectiveness === 0) {
+				return {
+					minDamage: 0,
+					maxDamage: 0,
+					minPercent: 0,
+					maxPercent: 0,
+					isOHKO: false,
+					description: `${translator.translate(moveName, "moves")}：无效`
+				};
+			}
+
+			return {
+				minDamage: attacker.level,
+				maxDamage: attacker.level,
+				minPercent: attacker.level,
+				maxPercent: attacker.level,
+				isOHKO: false,
+				description: `${translator.translate(moveName, "moves")}：固定${attacker.level}点`
+			};
+		}
+
+		
 		// 如果招式没有威力，返回0伤害
 		if (!moveData.basePower || moveData.basePower === 0) {
 			return {
@@ -209,7 +248,7 @@ export class DamageCalculator {
 				minPercent: 0,
 				maxPercent: 0,
 				isOHKO: false,
-				description: `${moveName} 变化招式`
+				description: `变化招式`
 			};
 		}
 
@@ -329,7 +368,7 @@ export class DamageCalculator {
 		const isOHKO = minDamage >= defenderHP;
 
 		// 生成描述
-		let description = `${translator.translate(moveName, "moves")} 对 ${translator.translate(defender.species, "pokemon")} 造成 ${minPercent.toFixed(1)}%-${maxPercent.toFixed(1)}% 伤害。`;
+		let description = `${translator.translate(moveName, "moves")}：${minPercent.toFixed(1)}%-${maxPercent.toFixed(1)}%`;
 		if (isOHKO) {
 			description += ' [一击必杀!]';
 		}
@@ -365,7 +404,7 @@ export class DamageCalculator {
 	static formatCalculationResults(calculations: MoveCalculation[]): string {
 		let output = '';
 		calculations.forEach((calc, index) => {
-			if(calc.result.minDamage > 0) {
+			if(calc.result.description !== "变化招式") {
 				output += `   ${calc.result.description}\n`;
 			}
 		});

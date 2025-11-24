@@ -44,7 +44,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 	private opponentTeamData: any[] | null = null;
 
 	// debug设置
-	private debugmode: boolean = true;
+	private debugmode: boolean = false;
 
 	// 场地状态跟踪
 	private weather: string | null = null;
@@ -383,6 +383,19 @@ export class DeepSeekAIPlayer extends AIPlayer {
 
 				if (this.opponentTeam[speciesName]) {
 					this.opponentTeam[speciesName].status = undefined;
+				}
+			}
+		}
+
+		// 道具丢失/破坏（气球破裂、道具被击落等）
+		else if (cmd === '-enditem') {
+			// |-enditem|p1a: Garchomp|Air Balloon
+			const ident = parts[1];
+			if (ident && ident.startsWith('p1')) {
+				const speciesName = ident.split(': ')[1];
+
+				if (this.opponentTeam[speciesName]) {
+					this.opponentTeam[speciesName].item = undefined;
 				}
 			}
 		}
@@ -779,13 +792,7 @@ ${extraInfo}`;
 					const moveCN = this.translate(moveData.name, 'moves');
 					const typeCN = this.translate(moveData.type, 'types');
 					const categoryCN = this.translate(moveData.category, 'category');
-					actions += `  move ${i + 1}: ${moveCN} [${typeCN}/${categoryCN}]`;
-					if (moveData.basePower) actions += ` 威力:${moveData.basePower}`;
-					if (moveData.accuracy === true) {
-						actions += ` 命中:必中`;
-					} else if (typeof moveData.accuracy === 'number') {
-						actions += ` 命中:${moveData.accuracy}%`;
-					}
+					actions += `  move ${i + 1}: ${moveCN}`;
 					actions += '\n';
 				});
 			}
@@ -970,17 +977,6 @@ ${extraInfo}`;
 				state += ` ${isTeamPreview ? '' : '属性:'}[${typesCN.join('/')}]`;
 			}
 
-			// 显示等级
-			if (pokemonData && pokemonData.level) {
-				state += ` 等级:${pokemonData.level}`;
-			}
-
-			// 添加种族值信息
-			if (speciesData.baseStats) {
-				const stats = speciesData.baseStats;
-				state += ` 种族值:[HP${stats.hp}/攻${stats.atk}/防${stats.def}/特攻${stats.spa}/特防${stats.spd}/速${stats.spe}]`;
-			}
-
 			// 队伍预览时不显示HP和状态
 			if (!isTeamPreview && p.condition) {
 				const condition = p.condition.toString();
@@ -1015,23 +1011,6 @@ ${extraInfo}`;
 				state += ` 道具:${itemCN}`;
 			}
 
-			if (!isTeamPreview && p.teraType) {
-				const teraTypeCN = this.translate(p.teraType, 'types');
-				state += ` 太晶:${teraTypeCN}`;
-
-				// 显示是否已太晶化
-				if (this.myTerastallizedPokemon === speciesName) {
-					state += ` [已太晶化]`;
-				}
-			}
-
-			state += '\n';
-
-			if (pokemonData && pokemonData.nature) {
-				const natureCN = this.translate(pokemonData.nature, 'natures');
-				state += `   性格: ${natureCN}`;
-			}
-
 			// 计算并显示速度能力值
 			if (pokemonData && speciesData.baseStats && pokemonData.ivs && pokemonData.evs) {
 				const speedStat = this.calculateSpeedStat(
@@ -1044,6 +1023,18 @@ ${extraInfo}`;
 				state += ` 速度:${speedStat}`;
 			}
 
+			if (!isTeamPreview && p.teraType) {
+				const teraTypeCN = this.translate(p.teraType, 'types');
+				state += ` 太晶:${teraTypeCN}`;
+
+				// 显示是否已太晶化
+				if (this.myTerastallizedPokemon === speciesName) {
+					state += ` [已太晶化]`;
+				}
+			}
+
+
+
 			state += '\n';
 
 			if (p.moves && p.moves.length > 0) {
@@ -1053,56 +1044,12 @@ ${extraInfo}`;
 					const moveCN = this.translate(moveData.name, 'moves');
 					const typeCN = this.translate(moveData.type, 'types');
 					const categoryCN = this.translate(moveData.category, 'category');
-					let moveStr = `${moveCN}[${typeCN}/${categoryCN}]`;
-					if (!isTeamPreview && moveData.basePower) moveStr += `威力${moveData.basePower}`;
+					let moveStr = `${moveCN}`;
 					return moveStr;
 				});
 				state += moveNames.join(', ') + '\n';
 			}
 		});
-
-		// 当前出战宝可梦详情（仅战斗中显示）
-		if (!isTeamPreview && 'active' in request && request.active && request.active[0]) {
-			const active = request.active[0];
-			const currentPokemon = request.side.pokemon.find((p: any) => p.active);
-
-			if (currentPokemon) {
-				const speciesName = currentPokemon.ident.split(': ')[1];
-				const speciesCN = this.translate(speciesName, 'pokemon');
-
-				state += `\n【当前出战详情】${speciesCN}\n`;
-
-				if (active.moves) {
-					state += '可用招式:\n';
-					active.moves.forEach((move: any, index: number) => {
-						if (!move.disabled) {
-							const moveData = Dex.moves.get(move.move);
-							const moveCN = this.translate(moveData.name, 'moves');
-							const typeCN = this.translate(moveData.type, 'types');
-							const categoryCN = this.translate(moveData.category, 'category');
-							state += `  ${index + 1}. ${moveCN} [${typeCN}/${categoryCN}]`;
-							if (moveData.basePower) state += ` 威力:${moveData.basePower}`;
-							state += '\n';
-						}
-					});
-				}
-
-				// 显示太晶化状态
-				if (currentPokemon.teraType) {
-					const teraTypeCN = this.translate(currentPokemon.teraType, 'types');
-					if (this.myTerastallizedPokemon === speciesName) {
-						// 当前宝可梦已经太晶化
-						state += `\n已太晶化！太晶属性: ${teraTypeCN}\n`;
-					} else if (active.canTerastallize && this.myTerastallizedPokemon === null) {
-						// 只有在队伍里还没有宝可梦太晶化时，才能太晶化
-						state += `\n可太晶化！太晶属性: ${teraTypeCN}\n`;
-					} else if (this.myTerastallizedPokemon !== null && this.myTerastallizedPokemon !== speciesName) {
-						// 队伍里已经有其他宝可梦太晶化了
-						state += `\n太晶属性: ${teraTypeCN} (队伍已使用太晶化)\n`;
-					}
-				}
-			}
-		}
 
 		// 对手队伍信息
 		state += '\n【对手队伍】\n';
@@ -1123,11 +1070,6 @@ ${extraInfo}`;
 				if (speciesData.types) {
 					const typesCN = speciesData.types.map((t: string) => this.translate(t, 'types'));
 					state += ` ${isTeamPreview ? '' : '属性:'}[${typesCN.join('/')}]`;
-				}
-
-				// 显示等级
-				if (p.level) {
-					state += ` 等级:${p.level}`;
 				}
 
 				// 队伍预览时不显示HP和状态
@@ -1166,24 +1108,6 @@ ${extraInfo}`;
 					state += ` 道具:${itemCN}`;
 				}
 
-				if (!isTeamPreview && p.teraType) {
-					const teraTypeCN = this.translate(p.teraType, 'types');
-					state += ` 太晶:${teraTypeCN}`;
-
-					// 显示是否已太晶化（从追踪的对手队伍信息中获取）
-					const trackedPokemon = this.opponentTeam[speciesName];
-					if (trackedPokemon && trackedPokemon.terastallized) {
-						state += ` [已太晶化]`;
-					}
-				}
-				
-				state += '\n';
-
-				if (p.nature) {
-					const natureCN = this.translate(p.nature, 'natures');
-					state += `   性格: ${natureCN}`;
-				}
-
 				// 计算并显示速度能力值
 				if (speciesData.baseStats && p.ivs && p.evs) {
 					const speedStat = this.calculateSpeedStat(
@@ -1196,6 +1120,17 @@ ${extraInfo}`;
 					state += ` 速度:${speedStat}`;
 				}
 
+				if (!isTeamPreview && p.teraType) {
+					const teraTypeCN = this.translate(p.teraType, 'types');
+					state += ` 太晶:${teraTypeCN}`;
+
+					// 显示是否已太晶化（从追踪的对手队伍信息中获取）
+					const trackedPokemon = this.opponentTeam[speciesName];
+					if (trackedPokemon && trackedPokemon.terastallized) {
+						state += ` [已太晶化]`;
+					}
+				}
+
 				state += '\n';
 
 				if (p.moves && p.moves.length > 0) {
@@ -1205,8 +1140,7 @@ ${extraInfo}`;
 						const moveCN = this.translate(moveData.name, 'moves');
 						const typeCN = this.translate(moveData.type, 'types');
 						const categoryCN = this.translate(moveData.category, 'category');
-						let moveStr = `${moveCN}[${typeCN}/${categoryCN}]`;
-						if (!isTeamPreview && moveData.basePower) moveStr += `威力${moveData.basePower}`;
+						let moveStr = `${moveCN}`;
 						return moveStr;
 					});
 					state += moveNames.join(', ') + '\n';
@@ -1214,6 +1148,34 @@ ${extraInfo}`;
 			});
 		} else {
 			state += '（暂无对手信息）\n';
+		}
+
+		// 当前出战宝可梦详情（仅战斗中显示）
+		if (!isTeamPreview && 'active' in request && request.active && request.active[0]) {
+			const active = request.active[0];
+			const currentPokemon = request.side.pokemon.find((p: any) => p.active);
+
+			if (currentPokemon) {
+				const speciesName = currentPokemon.ident.split(': ')[1];
+				const speciesCN = this.translate(speciesName, 'pokemon');
+
+				state += `\n【当前出战】\n${speciesCN}\n`;
+
+				// 显示太晶化状态
+				if (currentPokemon.teraType) {
+					const teraTypeCN = this.translate(currentPokemon.teraType, 'types');
+					if (this.myTerastallizedPokemon === speciesName) {
+						// 当前宝可梦已经太晶化
+						state += `\n已太晶化: ${teraTypeCN}\n`;
+					} else if (active.canTerastallize && this.myTerastallizedPokemon === null) {
+						// 只有在队伍里还没有宝可梦太晶化时，才能太晶化
+						state += `\n可太晶化: ${teraTypeCN}\n`;
+					} else if (this.myTerastallizedPokemon !== null && this.myTerastallizedPokemon !== speciesName) {
+						// 队伍里已经有其他宝可梦太晶化了
+						state += `\n队伍已使用太晶化`;
+					}
+				}
+			}
 		}
 
 		return state;
@@ -1227,7 +1189,7 @@ ${extraInfo}`;
 【任务】
 现在是宝可梦全球对战的决赛现场，你的目标是夺得冠军。这是你最后一次参加比赛，每一步都务必谨慎思考，如果输掉这场比赛你就再也没机会参加了。
 你需要根据计算公式和克制关系、现有的情报以及各种列出的考虑因素，选择胜率最高的行动方案。
-【输出格式】只输出一句指令，并在后面加上一句解释，后面再加一句话翻译一下对手的操作是什么
+【输出格式】只输出一句指令
 【重要】你有时候可以获得对手的操作，请你根据对手的操作信息做出压制。
 【伤害计算】我会在提示词中提供精确的伤害计算结果（包括我方全队对对手的伤害、对手对我方的伤害）。**必须使用这些精确数据**做决策，**禁止自己估算伤害**。伤害计算已考虑所有修正值（STAB、属性克制、天气、能力变化等）。
 
@@ -1345,7 +1307,7 @@ ${extraInfo}`;
 			};
 
 			let result = '\n=== 针对对手首发宝可梦的伤害计算 ===\n\n';
-			result += `【我方全队 → 对手首发 ${this.translate(opponentPokemonData.species, 'pokemon')}】\n\n`;
+			result += `【我方全队 → 对手首发${this.translate(opponentPokemonData.species, 'pokemon')}】\n\n`;
 
 			// 遍历我方所有宝可梦
 			for (let i = 0; i < this.teamData.length; i++) {
@@ -1380,6 +1342,45 @@ ${extraInfo}`;
 
 				result += DamageCalculator.formatCalculationResults(calculations);
 				result += '\n';
+			}
+
+			// 计算对手首发宝可梦对我方所有宝可梦的伤害
+			const opponentMoves = opponentPokemonData.moves || [];
+			if (opponentMoves.length > 0) {
+				const opponentPokemonCN = this.translate(opponentPokemonData.species, 'pokemon');
+				result += `【对手首发${opponentPokemonCN} → 我方全队】\n\n`;
+
+				for (let i = 0; i < this.teamData.length; i++) {
+					const myPokemonData = this.teamData[i];
+
+					const defenderData = {
+						species: myPokemonData.species,
+						level: myPokemonData.level || 100,
+						nature: myPokemonData.nature || 'hardy',
+						ivs: myPokemonData.ivs || { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 },
+						evs: myPokemonData.evs || { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
+						ability: myPokemonData.ability,
+						item: myPokemonData.item,
+						teraType: myPokemonData.teraType,
+						isTerastallized: false,
+						boosts: undefined,
+						status: undefined
+					};
+
+					const pokemonCN = this.translate(myPokemonData.species, 'pokemon');
+					result += `${i + 1}. 对${pokemonCN}\n`;
+
+					const opponentCalculations = DamageCalculator.calculateAllMoves(
+						opponentData,
+						defenderData,
+						opponentMoves,
+						baseConditions
+					);
+
+					let calculationResults = DamageCalculator.formatCalculationResults(opponentCalculations);
+					result += calculationResults==='' ? '无伤害招式\n' : calculationResults;
+					result += '\n';
+				}
 			}
 
 			return result;
@@ -1434,7 +1435,8 @@ ${extraInfo}`;
 				ivs: opponentPokemonData.ivs || { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 },
 				evs: opponentPokemonData.evs || { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
 				ability: opponentPokemonData.ability,
-				item: opponentPokemonData.item,
+				// 优先使用实时追踪的道具信息（气球破裂后会被设置为 undefined）
+				item: opponentActivePokemon.item !== undefined ? opponentActivePokemon.item : opponentPokemonData.item,
 				teraType: opponentActivePokemon.teraType,
 				isTerastallized: opponentActivePokemon.terastallized || false,
 				boosts: opponentActivePokemon.boosts,
@@ -1447,10 +1449,10 @@ ${extraInfo}`;
 				terrain: this.terrain || undefined
 			};
 
-			let result = '=== 伤害计算结果 ===\n\n';
+			let result = '=== 伤害计算结果 ===\n';
 
 			// 1. 计算我方所有宝可梦对对手当前在场宝可梦的伤害
-			result += '【我方全队 → 对手当前在场宝可梦】\n\n';
+			result += '【我方全队 → 对手当前在场宝可梦】\n';
 
 			const allMyPokemon = request.side.pokemon;
 			for (let i = 0; i < allMyPokemon.length; i++) {
@@ -1497,27 +1499,56 @@ ${extraInfo}`;
 				);
 
 				result += DamageCalculator.formatCalculationResults(calculations);
-				result += '\n';
 			}
 
-			// 2. 计算对手当前在场宝可梦对我方当前在场宝可梦的伤害
+			// 2. 计算对手当前在场宝可梦对我方所有存活宝可梦的伤害
 			const opponentMoves = opponentPokemonData.moves || [];
 			if (opponentMoves.length > 0) {
-				const myPokemonCN = this.translate(mySpeciesName, 'pokemon');
 				const opponentPokemonCN = this.translate(opponentActivePokemon.name, 'pokemon');
+				result += `【对手 ${opponentPokemonCN} → 我方全队】\n`;
 
-				result += `【对手 ${opponentPokemonCN} → 我方 ${myPokemonCN}】\n`;
-				const opponentCalculations = DamageCalculator.calculateAllMoves(
-					opponentData,
-					myData,
-					opponentMoves,
-					{
-						...baseConditions,
-						isReflect: this.mySideConditions.has('Reflect'),
-						isLightScreen: this.mySideConditions.has('Light Screen')
-					}
-				);
-				result += DamageCalculator.formatCalculationResults(opponentCalculations);
+				// 遍历我方所有宝可梦
+				for (let i = 0; i < allMyPokemon.length; i++) {
+					const pokemon = allMyPokemon[i];
+					const pokemonSpeciesName = pokemon.ident.split(': ')[1];
+					const pokemonData = this.teamData?.find(mon => this.isPokemonSame(mon.species, pokemonSpeciesName));
+
+					if (!pokemonData) continue;
+
+					// 检查是否已倒下
+					const isFainted = pokemon.condition && pokemon.condition.toString().includes('fnt');
+					if (isFainted) continue;
+
+					const defenderData = {
+						species: pokemonData.species,
+						level: pokemonData.level || 100,
+						nature: pokemonData.nature || 'hardy',
+						ivs: pokemonData.ivs || { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 },
+						evs: pokemonData.evs || { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
+						ability: pokemonData.ability,
+						item: pokemonData.item,
+						teraType: pokemon.teraType,
+						isTerastallized: this.myTerastallizedPokemon === pokemonSpeciesName,
+						boosts: (pokemon as any).boosts,
+						status: (pokemon as any).status
+					};
+
+					const pokemonCN = this.translate(pokemonSpeciesName, 'pokemon');
+					const isActive = pokemon.active ? ' [当前出战]' : '';
+					result += `${i + 1}. 对${pokemonCN}${isActive}\n`;
+
+					const opponentCalculations = DamageCalculator.calculateAllMoves(
+						opponentData,
+						defenderData,
+						opponentMoves,
+						{
+							...baseConditions,
+							isReflect: this.mySideConditions.has('Reflect'),
+							isLightScreen: this.mySideConditions.has('Light Screen')
+						}
+					);
+					result += DamageCalculator.formatCalculationResults(opponentCalculations);
+				}
 			}
 
 			return result;
