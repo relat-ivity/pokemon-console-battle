@@ -197,7 +197,7 @@ async function getPlayerChoice() {
  * 创建玩家选择处理器
  */
 function createPlayerChoiceHandler(battleState, streams, ai) {
-	return async function handlePlayerChoice() {
+	return async function handlePlayerChoice(isForceSwitch = false) {
 		if (battleState.isProcessingChoice || battleState.battleEnded) return;
 		battleState.startProcessingChoice();
 
@@ -209,14 +209,13 @@ function createPlayerChoiceHandler(battleState, streams, ai) {
 					// 显示当前队伍状态
 					const request = battleState.currentRequest || battleState.lastRequest;
 					displayBattleTeamStatus(battleState, request, translator);
-					// 递归调用，重新等待输入
+					// 递归调用，重新等待输入（保持 isForceSwitch 状态）
 					battleState.endProcessingChoice();
-					await handlePlayerChoice();
+					await handlePlayerChoice(isForceSwitch);
 				} else {
 					// 通知 AI 玩家的选择（用于作弊功能）
 					// 注意：只在正常回合（非强制切换）时通知 AI，因为强制切换是被动的
 					// 但是必须先通知 AI，否则 AI 可能在 waitForPlayerChoice() 处死锁
-					const isForceSwitch = battleState.currentRequest && battleState.currentRequest.forceSwitch;
 					if (!isForceSwitch && ai && typeof ai.setPlayerChoice === 'function') {
 						ai.setPlayerChoice(choice);
 					}
@@ -230,8 +229,8 @@ function createPlayerChoiceHandler(battleState, streams, ai) {
 		} catch (err) {
 			console.error('输入错误:', err);
 			battleState.endProcessingChoice();
-			// 出错后重新等待输入
-			await handlePlayerChoice();
+			// 出错后重新等待输入（保持 isForceSwitch 状态）
+			await handlePlayerChoice(isForceSwitch);
 		}
 	};
 }
@@ -263,11 +262,11 @@ async function startMessageLoop(battleState, streams, handlePlayerChoice, teamOr
 						if (battleState.currentRequest && !battleState.isProcessingChoice) {
 							if (battleState.currentRequest.forceSwitch) {
 								displaySwitchChoices(battleState.currentRequest, translator);
-									handlePlayerChoice();
+									handlePlayerChoice(true);  // 强制切换，传递 true
 								battleState.clearCurrentRequest();
 							} else if (battleState.currentRequest.active) {
 								displayChoices(battleState, battleState.currentRequest, translator, debug_mode);
-									handlePlayerChoice();
+									handlePlayerChoice(false);  // 正常回合，传递 false
 								battleState.saveLastRequest();
 								battleState.clearCurrentRequest();
 							}
@@ -304,7 +303,7 @@ async function startMessageLoop(battleState, streams, handlePlayerChoice, teamOr
 								process.nextTick(async () => {
 									if (battleState.currentRequest && battleState.currentRequest.forceSwitch && !battleState.isProcessingChoice) {
 										displaySwitchChoices(battleState.currentRequest, translator);
-										handlePlayerChoice();
+										handlePlayerChoice(true);  // 强制切换，传递 true
 										battleState.clearCurrentRequest();
 									}
 								});
@@ -326,8 +325,9 @@ async function startMessageLoop(battleState, streams, handlePlayerChoice, teamOr
 						// 如果有无效选择错误，只提示错误，不重新显示对战信息
 					if (errorMsg.includes('[Invalid choice]') && battleState.currentRequest) {
 							console.log('请重新输入有效的指令');
-							// 直接触发玩家选择处理
-							handlePlayerChoice();
+							// 直接触发玩家选择处理（传递正确的 forceSwitch 状态）
+							const isForceSwitch = battleState.currentRequest.forceSwitch || false;
+							handlePlayerChoice(isForceSwitch);
 						}
 					}
 				}
