@@ -699,14 +699,14 @@ ${actions}`;
 
 			let extraInfo = '';
 			let damageCalcForFirstPokemon = '';
-
-			// 只有在获得对手首发情报时才计算伤害
 			if (playerTeamInfo) {
 				const firstPokemonIndex = parseInt(playerTeamInfo.charAt(0)) - 1;
 				extraInfo = `【重要情报】对手的首发宝可梦是第${firstPokemonIndex + 1}号宝可梦！\n`;
 
-				// 计算我方所有宝可梦对对手首发的伤害
-				damageCalcForFirstPokemon = this.calculateDamageForTeamPreview(request, firstPokemonIndex);
+				// 如果知道对手首发，计算我方所有宝可梦对其的伤害
+				if (this.opponentTeamData && this.opponentTeamData[firstPokemonIndex]) {
+					damageCalcForFirstPokemon = this.calculateDamageForTeamPreview(request, firstPokemonIndex);
+				}
 			}
 
 			const prompt = `当前要设置队伍首发。指令格式：team 123456（数字为宝可梦编号，首发在最前）
@@ -1032,12 +1032,16 @@ ${extraInfo}`;
 				state += `   性格: ${natureCN}`;
 			}
 
-			if (pokemonData && pokemonData.ivs) {
-				state += ` 个体值:[HP${pokemonData.ivs.hp}/攻${pokemonData.ivs.atk}/防${pokemonData.ivs.def}/特攻${pokemonData.ivs.spa}/特防${pokemonData.ivs.spd}/速${pokemonData.ivs.spe}]`;
-			}
-
-			if (pokemonData && pokemonData.evs) {
-				state += ` 努力值:[HP${pokemonData.evs.hp}/攻${pokemonData.evs.atk}/防${pokemonData.evs.def}/特攻${pokemonData.evs.spa}/特防${pokemonData.evs.spd}/速${pokemonData.evs.spe}]`;
+			// 计算并显示速度能力值
+			if (pokemonData && speciesData.baseStats && pokemonData.ivs && pokemonData.evs) {
+				const speedStat = this.calculateSpeedStat(
+					speciesData.baseStats.spe,
+					pokemonData.level || 100,
+					pokemonData.ivs.spe || 31,
+					pokemonData.evs.spe || 0,
+					pokemonData.nature || 'hardy'
+				);
+				state += ` 速度:${speedStat}`;
 			}
 
 			state += '\n';
@@ -1078,12 +1082,6 @@ ${extraInfo}`;
 							const categoryCN = this.translate(moveData.category, 'category');
 							state += `  ${index + 1}. ${moveCN} [${typeCN}/${categoryCN}]`;
 							if (moveData.basePower) state += ` 威力:${moveData.basePower}`;
-							if (moveData.accuracy === true) {
-								state += ` 命中:必中`;
-							} else if (typeof moveData.accuracy === 'number') {
-								state += ` 命中:${moveData.accuracy}%`;
-							}
-							if (move.pp !== undefined) state += ` PP:${move.pp}/${move.maxpp}`;
 							state += '\n';
 						}
 					});
@@ -1125,12 +1123,6 @@ ${extraInfo}`;
 				if (speciesData.types) {
 					const typesCN = speciesData.types.map((t: string) => this.translate(t, 'types'));
 					state += ` ${isTeamPreview ? '' : '属性:'}[${typesCN.join('/')}]`;
-				}
-
-				// 添加种族值信息
-				if (speciesData.baseStats) {
-					const stats = speciesData.baseStats;
-					state += ` 种族值:[HP${stats.hp}/攻${stats.atk}/防${stats.def}/特攻${stats.spa}/特防${stats.spd}/速${stats.spe}]`;
 				}
 
 				// 显示等级
@@ -1186,18 +1178,22 @@ ${extraInfo}`;
 				}
 				
 				state += '\n';
-				
+
 				if (p.nature) {
 					const natureCN = this.translate(p.nature, 'natures');
 					state += `   性格: ${natureCN}`;
 				}
 
-				if (p.ivs) {
-					state += ` 个体值:[HP${p.ivs.hp}/攻${p.ivs.atk}/防${p.ivs.def}/特攻${p.ivs.spa}/特防${p.ivs.spd}/速${p.ivs.spe}]`;
-				}
-
-				if (p.evs) {
-					state += ` 努力值:[HP${p.evs.hp}/攻${p.evs.atk}/防${p.evs.def}/特攻${p.evs.spa}/特防${p.evs.spd}/速${p.evs.spe}]`;
+				// 计算并显示速度能力值
+				if (speciesData.baseStats && p.ivs && p.evs) {
+					const speedStat = this.calculateSpeedStat(
+						speciesData.baseStats.spe,
+						p.level || 100,
+						p.ivs.spe || 31,
+						p.evs.spe || 0,
+						p.nature || 'hardy'
+					);
+					state += ` 速度:${speedStat}`;
 				}
 
 				state += '\n';
@@ -1292,6 +1288,28 @@ ${extraInfo}`;
 电→地  
 超能→恶  
 龙→妖`;
+	}
+
+	/**
+	 * 计算速度能力值
+	 * Stat = ⌊(⌊0.01×(2×Base+IV+⌊EV÷4⌋)×Level⌋+5)×Nature⌋
+	 */
+	private calculateSpeedStat(baseSpeed: number, level: number, iv: number, ev: number, nature: string): number {
+		// 基础计算
+		let stat = Math.floor((Math.floor(0.01 * (2 * baseSpeed + iv + Math.floor(ev / 4)) * level) + 5));
+
+		// 性格修正
+		const natureLower = nature.toLowerCase();
+		// 加速度的性格
+		if (['timid', 'hasty', 'jolly', 'naive'].includes(natureLower)) {
+			stat = Math.floor(stat * 1.1);
+		}
+		// 减速度的性格
+		else if (['brave', 'relaxed', 'quiet', 'sassy'].includes(natureLower)) {
+			stat = Math.floor(stat * 0.9);
+		}
+
+		return stat;
 	}
 
 	/**

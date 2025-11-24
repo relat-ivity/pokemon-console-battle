@@ -329,7 +329,7 @@ export class DamageCalculator {
 		const isOHKO = minDamage >= defenderHP;
 
 		// 生成描述
-		let description = `${translator.translate(moveName, "moves")} 对 ${translator.translate(defender.species, "pokemon")} 造成 ${minDamage}-${maxDamage} 伤害 (${minPercent.toFixed(1)}%-${maxPercent.toFixed(1)}%)`;
+		let description = `${translator.translate(moveName, "moves")} 对 ${translator.translate(defender.species, "pokemon")} 造成 ${minPercent.toFixed(1)}%-${maxPercent.toFixed(1)}% 伤害。`;
 		if (isOHKO) {
 			description += ' [一击必杀!]';
 		}
@@ -363,10 +363,11 @@ export class DamageCalculator {
 	 * 格式化伤害计算结果为文本（供 AI 调用）
 	 */
 	static formatCalculationResults(calculations: MoveCalculation[]): string {
-		let output = '【伤害计算结果】\n';
-
+		let output = '';
 		calculations.forEach((calc, index) => {
-			output += `${index + 1}. ${calc.result.description}\n`;
+			if(calc.result.minDamage > 0) {
+				output += `   ${calc.result.description}\n`;
+			}
 		});
 
 		return output;
