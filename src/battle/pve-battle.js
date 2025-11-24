@@ -214,7 +214,10 @@ function createPlayerChoiceHandler(battleState, streams, ai) {
 					await handlePlayerChoice();
 				} else {
 					// 通知 AI 玩家的选择（用于作弊功能）
-					if (!battleState.currentRequest.forceSwitch && ai && typeof ai.setPlayerChoice === 'function') {
+					// 注意：只在正常回合（非强制切换）时通知 AI，因为强制切换是被动的
+					// 但是必须先通知 AI，否则 AI 可能在 waitForPlayerChoice() 处死锁
+					const isForceSwitch = battleState.currentRequest && battleState.currentRequest.forceSwitch;
+					if (!isForceSwitch && ai && typeof ai.setPlayerChoice === 'function') {
 						ai.setPlayerChoice(choice);
 					}
 					// 直接写入选择，不需要 >p1 前缀
