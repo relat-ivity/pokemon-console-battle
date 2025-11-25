@@ -44,7 +44,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 	private opponentTeamData: any[] | null = null;
 
 	// debug设置
-	private debugmode: boolean = false;
+	private debugmode: boolean = true;
 
 	// 场地状态跟踪
 	private weather: string | null = null;
