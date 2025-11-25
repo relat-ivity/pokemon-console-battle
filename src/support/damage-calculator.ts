@@ -79,6 +79,41 @@ export class DamageCalculator {
 	};
 
 	/**
+	 * 特性免疫表（特性名 → 免疫的属性）
+	 */
+	private static readonly IMMUNITY_ABILITIES: { [key: string]: string[] } = {
+		// 完全免疫特性
+		'flashfire': ['Fire'],          // 引火
+		'waterabsorb': ['Water'],       // 储水
+		'stormdrain': ['Water'],        // 引水
+		'sapsipper': ['Grass'],         // 食草
+		'lightningrod': ['Electric'],   // 避雷针
+		'voltabsorb': ['Electric'],     // 电气引擎
+		'dryskin': ['Water'],           // 干燥皮肤
+		'levitate': ['Ground'],         // 飘浮
+		'wonderguard': [],              // 神奇守护（特殊处理）
+		'motordrive': ['Electric'],     // 电气引擎（旧名）
+		'eartheater': ['Ground'],       // 食土
+		'wellbakedbody': ['Fire'],      // 焦香之躯
+		'windrider': ['Wind']           // 乘风（第九世代）
+	};
+
+	/**
+	 * 特性伤害减免表（特性名 → [受影响的属性, 减免倍率]）
+	 */
+	private static readonly DAMAGE_REDUCTION_ABILITIES: { [key: string]: { types?: string[]; condition?: string; multiplier: number } } = {
+		'thickfat': { types: ['Fire', 'Ice'], multiplier: 0.5 },           // 厚脂肪
+		'filter': { condition: 'super-effective', multiplier: 0.75 },       // 过滤
+		'solidrock': { condition: 'super-effective', multiplier: 0.75 },    // 固岩
+		'prismarmor': { condition: 'super-effective', multiplier: 0.75 },   // 棱镜装甲
+		'multiscale': { condition: 'full-hp', multiplier: 0.5 },            // 多重鳞片
+		'shadowshield': { condition: 'full-hp', multiplier: 0.5 },          // 幻影防守
+		'punkrock': { types: ['Sound'], multiplier: 0.5 },                  // 庞克摇滚
+		'icescales': { condition: 'special', multiplier: 0.5 },             // 冰鳞粉
+		'furcoat': { condition: 'physical', multiplier: 0.5 }               // 毛皮大衣
+	};
+
+	/**
 	 * 性格修正表
 	 */
 	private static readonly NATURE_MODIFIERS: { [key: string]: { plus?: keyof PokemonStats; minus?: keyof PokemonStats } } = {
@@ -314,6 +349,24 @@ export class DamageCalculator {
 			typeEffectiveness = 0;
 		}
 
+		// 检查防守方的特性免疫
+		if (defender.ability) {
+			// 标准化特性名称：去掉空格、连字符、冒号等特殊字符，全部转为小写
+			const abilityName = defender.ability.toLowerCase().replace(/[\s-:.']+/g, '');
+			const immuneTypes = this.IMMUNITY_ABILITIES[abilityName];
+			if (immuneTypes && immuneTypes.includes(moveData.type)) {
+				// 特性免疫该属性
+				return {
+					minDamage: 0,
+					maxDamage: 0,
+					minPercent: 0,
+					maxPercent: 0,
+					isOHKO: false,
+					description: `${translator.translate(moveName, "moves")}：${translator.translate(defender.ability, "abilities")}免疫`
+				};
+			}
+		}
+
 		modifier *= typeEffectiveness;
 
 		// 天气加成
@@ -353,6 +406,40 @@ export class DamageCalculator {
 		// 烧伤状态会降低物理攻击
 		if (attacker.status === 'brn' && isPhysical) {
 			modifier *= 0.5;
+		}
+
+		// 检查防守方的特性减免
+		if (defender.ability) {
+			// 标准化特性名称：去掉空格、连字符、冒号等特殊字符，全部转为小写
+			const abilityName = defender.ability.toLowerCase().replace(/[\s-:.']+/g, '');
+			const reductionData = this.DAMAGE_REDUCTION_ABILITIES[abilityName];
+
+			if (reductionData) {
+				let shouldApply = false;
+
+				// 检查是否满足触发条件
+				if (reductionData.types) {
+					// 特定属性减免（如厚脂肪）
+					shouldApply = reductionData.types.includes(moveData.type);
+				} else if (reductionData.condition === 'super-effective') {
+					// 效果拔群时减免（如过滤、固岩）
+					shouldApply = typeEffectiveness > 1;
+				} else if (reductionData.condition === 'full-hp') {
+					// 满HP时减免（如多重鳞片、幻影防守）
+					// 注意：这里无法精确判断当前HP，暂时跳过
+					shouldApply = false;
+				} else if (reductionData.condition === 'special') {
+					// 特殊攻击减免（如冰鳞粉）
+					shouldApply = !isPhysical;
+				} else if (reductionData.condition === 'physical') {
+					// 物理攻击减免（如毛皮大衣）
+					shouldApply = isPhysical;
+				}
+
+				if (shouldApply) {
+					modifier *= reductionData.multiplier;
+				}
+			}
 		}
 
 		// 计算最小和最大伤害（随机数 0.85 ~ 1.0）

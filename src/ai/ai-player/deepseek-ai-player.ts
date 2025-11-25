@@ -114,7 +114,6 @@ export class DeepSeekAIPlayer extends AIPlayer {
 			// 如果重新排序成功，更新 opponentTeamData
 			if (reorderedTeamData.length === originalTeamData.length) {
 				this.opponentTeamData = reorderedTeamData;
-				if (this.debugmode) console.log(`[Debug] 对手队伍已根据顺序 ${order} 重新排列`);
 			}
 		}
 
@@ -298,7 +297,6 @@ export class DeepSeekAIPlayer extends AIPlayer {
 						if (this.debugmode) {
 							const pokemon1CN = this.translate(this.opponentTeamData[0].species, 'pokemon');
 							const pokemon2CN = this.translate(temp.species, 'pokemon');
-							console.log(`[Debug] 对手队伍顺序更新：${pokemon1CN} ↔ ${pokemon2CN} （位置 1 ↔ ${switchIndex + 1}）`);
 						}
 					}
 				}
@@ -552,6 +550,8 @@ export class DeepSeekAIPlayer extends AIPlayer {
 	 * 处理正常回合（异步版本）
 	 */
 	private async handleActiveAsync(request: MoveRequest): Promise<void> {
+		this.playerChoice = null;
+
 		let [canMegaEvo, canUltraBurst, canZMove, canDynamax, canTerastallize] = [true, true, true, true, true];
 		const pokemon = request.side.pokemon;
 		const chosen: number[] = [];
@@ -647,9 +647,6 @@ export class DeepSeekAIPlayer extends AIPlayer {
 
 		const choices = await Promise.all(choicePromises);
 		this.choose(choices.join(', '));
-
-		// 清除已使用的用户选择
-		this.playerChoice = null;
 	}
 
 	/**
@@ -738,6 +735,7 @@ ${actions}`;
 		if (!this.lastRequest) return null;
 		console.log('\n等待DeepSeek选择首发宝可梦...');
 
+		// 注意：队伍预览只发生一次，不需要清空旧数据
 		// 如果作弊概率大于0，等待用户队伍顺序选择完成
 		let playerTeamInfo: string | null = null;
 		if (this.cheatProbability > 0) {
@@ -761,16 +759,13 @@ ${actions}`;
 					damageCalcForFirstPokemon = this.calculateDamageForTeamPreview(request, firstPokemonIndex);
 				}
 			}
-			extraInfo += "【重要情报】对方的首发是1号宝可梦！";
-
+			if(this.shouldCheat()) {
+				extraInfo += "【重要情报】对方的首发是1号宝可梦！";
+			}
 			const prompt = `当前要设置队伍首发。指令格式：team 123456（数字为宝可梦编号，首发在最前）
 【考虑因素】
-0. 【**重要**】根据重要情报，请优先通过克制对方的出场顺序、使用针对对手首发的宝可梦或者抓住时机强化来反制对手的选择
-1. 【**关键**】属性克制和招式威力 - **必须严格执行以下步骤**：
-   ① 先确认对手宝可梦的属性（从上方信息中查看，如"火/钢"表示火+钢双属性）
-   ② 对双属性宝可梦，必须分别查表计算对两个属性的倍率，然后相乘
-   ③ 例如：冰招式→火/钢 = (冰→火:0.5) × (冰→钢:0.5) = 0.25倍（四倍抵抗）
-   ④ 禁止臆测宝可梦的属性，只能使用上方明确列出的属性信息
+0. 【**重要**】如果有重要情报，请优先克制对方首发宝可梦
+1. 【**关键**】属性克制和招式威力，通过伤害计算器获得伤害数据
 2. 首发宝可梦的队伍配合能力
 3. 特性和道具配合
 4. 攻守平衡
@@ -789,17 +784,12 @@ ${extraInfo}`;
 			if (aiResponse) {
 				const parsed = this.parseAIResponse(aiResponse);
 				if (parsed && parsed.type === 'team' && parsed.team) {
-					// 清除已使用的用户队伍顺序
-					this.playerTeamOrder = null;
 					return `team ${parsed.team}`;
 				}
 			}
 		} catch (error) {
 			console.error('AI队伍预览失败:', error);
 		}
-
-		// 清除已使用的用户队伍顺序
-		this.playerTeamOrder = null;
 		return null;
 	}
 
@@ -1233,7 +1223,7 @@ ${extraInfo}`;
 	private getBaseSystemPrompt(): string {
 		let debugInfo = '';
 		if (this.debugmode) {
-			debugInfo = '，并在后面加上一句解释，后面再加一句话翻译一下对手的操作是什么';
+			debugInfo = '，并在后面加上一句解释，后面再加一句话告诉信息中有没有“【重要情报】”，如果有翻译一下对手的操作是什么';
 		}
 		return `你是一名宝可梦对战专家，精通单打对战策略。
 【任务】
@@ -1392,7 +1382,16 @@ ${extraInfo}`;
 		try {
 			// 获取当前出战的我方宝可梦
 			const myActivePokemon = request.side.pokemon.find((p: any) => p.active);
-			if (!myActivePokemon) return null;
+			if (!myActivePokemon) {
+				console.log('[Error] calculateAllDamages: 找不到当前出战的我方宝可梦');
+				return null;
+			}
+
+			// 如果没有对手队伍数据，无法计算伤害
+			if (!this.opponentTeamData || this.opponentTeamData.length === 0) {
+				console.log('[Error] calculateAllDamages: 对手队伍数据为空');
+				return null;
+			}
 
 			// 检查玩家是否选择切换
 			let opponentTargetPokemonData: any = null;
@@ -1411,19 +1410,32 @@ ${extraInfo}`;
 			// 如果没有切换信息，使用当前出战的对手宝可梦
 			if (!opponentTargetPokemonData) {
 				const opponentActivePokemon = Object.values(this.opponentTeam).find(p => p.active);
-				if (!opponentActivePokemon) return null;
 
-				opponentTargetSpeciesName = opponentActivePokemon.name;
-				opponentTargetPokemonData = this.opponentTeamData?.find(mon =>
-					this.isPokemonSame(mon.species, opponentActivePokemon.name)
-				);
-				if (!opponentTargetPokemonData) return null;
+				if (opponentActivePokemon) {
+					// 找到了 active 的对手宝可梦，使用它
+					opponentTargetSpeciesName = opponentActivePokemon.name;
+					opponentTargetPokemonData = this.opponentTeamData?.find(mon =>
+						this.isPokemonSame(mon.species, opponentActivePokemon.name)
+					);
+					if (!opponentTargetPokemonData) {
+						console.log(`[Error] calculateAllDamages: 在对手队伍数据中找不到 ${opponentActivePokemon.name}`);
+						return null;
+					}
+				} else {
+					// 备用方案：如果 opponentTeam 中没有 active 的宝可梦（可能是战斗刚开始），
+					// 默认使用 opponentTeamData[0]（通常第一只宝可梦是在场的）
+					opponentTargetPokemonData = this.opponentTeamData[0];
+					opponentTargetSpeciesName = opponentTargetPokemonData.species;
+				}
 			}
 
 			// 构建我方当前出战宝可梦数据
 			const mySpeciesName = myActivePokemon.ident.split(': ')[1];
 			const myPokemonData = this.teamData?.find(mon => this.isPokemonSame(mon.species, mySpeciesName));
-			if (!myPokemonData) return null;
+			if (!myPokemonData) {
+				console.log(`[Error] calculateAllDamages: 在我方队伍数据中找不到 ${mySpeciesName}`);
+				return null;
+			}
 
 			const myData = {
 				species: myPokemonData.species,
