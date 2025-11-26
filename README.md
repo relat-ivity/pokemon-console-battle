@@ -3,16 +3,16 @@
 
 可以以**文本形式**和AI进行宝可梦第九代对战（支持 gen9randombattle 和 gen9ou 规则）。
 
-Version：0.6.0-snapshot
+Version：1.0.0
 
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## ✨ 特性
 
-- 🎮 **完整的第九代对战系统**：支持太晶化、50级对战、随机队伍生成，支持 gen9randombattle 和 gen9ou 格式
+- 🎮 **完整的第九代对战系统**：支持太晶化、可使用teams文件夹的预设队伍对战，支持 gen9randombattle 和 gen9ou 格式
 - 🤖 **多种AI对手**：
-  - **DeepSeek AI** - 高性能、低成本的 LLM AI，支持作弊模式
+  - **LLM AI** - 支持硅基流动/DeepSeek/OpenRouter 等多种大模型，可配置作弊模式
   - **本地大师AI** - 强大的本地策略AI
   - **本地智能AI** - 基于属性克制的智能决策
   - **随机AI** - 用于测试的随机选择
@@ -42,11 +42,8 @@ npm install
 # 设置环境变量文件
 copy .env.example .env
 
-# 运行
+# 安装运行
 npm start
-# 或
-node src/battle/pve-battle.js
-
 ```
 ---
 
@@ -67,17 +64,32 @@ team            # 查看所有宝可梦状态
 
 项目支持 4 种 AI 对手，难度逐级递增：
 
-#### 1. DeepSeek AI 🧠
-使用 DeepSeek LLM 进行智能决策，支持作弊模式（获取对手操作信息）
+#### 1. LLM AI 🧠
+使用大语言模型进行智能决策，支持作弊模式（获取对手操作信息）
+
+**推荐：使用硅基流动（国内服务，默认）**
 
 ```bash
-# 设置 API 密钥，或者在.env文件中添加
-export DEEPSEEK_API_KEY="你的API密钥"
+# 复制配置文件
+cp .env.example .env
+
+# 编辑 .env 文件，填写 API 密钥，配置模型
+LLM_PROVIDER=siliconflow
+SILICONFLOW_API_KEY=你的API密钥
+SILICONFLOW_MODEL=deepseek-ai/DeepSeek-V3.2-Exp
+
+# 启动游戏
 npm start
-# 选择菜单中选择 "1. DeepSeek AI"
+# 选择菜单中选择 "1. LLM AI"
 ```
 
-详细配置请查看 [DeepSeek AI 文档](./docs/DEEPSEEK_AI_GUIDE.md)
+**支持的 Provider：**
+- **硅基流动** (推荐) - 国内服务，速度快，价格低，**注册赠送20元余额**
+- **DeepSeek** - DeepSeek 官方 API
+- **OpenRouter** - 支持 Claude、GPT-4 等多种模型，拥有最多模型
+
+详细配置请查看：
+- [LLM AI 文档](./docs/LLM_AI_GUIDE.md)
 
 #### 2. 本地大师AI 🥇
 高级本地策略AI，无需API密钥
@@ -199,7 +211,7 @@ Player 的队伍
 
 战斗开始！
 
-等待DeepSeek选择首发宝可梦...
+等待AI选择首发宝可梦...
 
 【你】 派出了 千面避役 (HP: 156/156)
 
@@ -292,8 +304,8 @@ Player 的队伍
 
 ## 📚 文档
 
-- [DeepSeek AI配置指南](./docs/DEEPSEEK_AI_GUIDE.md)
-- [Claude.md](./CLAUDE.md) - Claude项目架构和开发指南
+- [LLM AI 使用指南](./docs/LLM_AI_GUIDE.md) - 提示词和功能说明
+- [Claude.md](./CLAUDE.md) - Claude 项目架构和开发指南
 
 ## 🤝 贡献
 

@@ -3,10 +3,11 @@
  */
 
 import { SmartAIPlayer } from './ai-player/smart-ai-player';
-import { DeepSeekAIPlayer } from './ai-player/deepseek-ai-player';
+import { LLMAIPlayer } from './ai-player/llm-ai-player';
 import { RandomAIPlayer } from './ai-player/random-ai-player';
 import { MasterAIPlayer } from './ai-player/master-ai-player';
 import { AIPlayer } from './ai-player';
+import { DeepSeekProvider, OpenRouterProvider, SiliconFlowProvider } from './ai-player/llm_provider';
 
 export enum AIType {
 	SMART = 1,
@@ -19,7 +20,7 @@ export enum AIType {
 export const AI_CONFIG = {
 	smart_ai: { id: AIType.SMART, name: 'Smart AI Player' },
 	random_ai: { id: AIType.RANDOM, name: 'Random AI Player' },
-	deepseek_ai: { id: AIType.DEEPSEEK, name: 'DeepSeek AI Player' },
+	llm_ai: { id: AIType.DEEPSEEK, name: 'LLM AI Player' },
 	master_ai: { id: AIType.MASTER, name: 'Master AI Player' }
 } as const;
 
@@ -52,13 +53,58 @@ export class AIPlayerFactory {
 	}
 
 	/**
+	 * 根据环境变量创建 LLM Provider
+	 * @param debug 是否开启调试
+	 * @returns LLM Provider 实例，如果无法创建则返回 null
+	 */
+	private static createLLMProvider(debug: boolean = false): any {
+		const llmProvider = (process.env.LLM_PROVIDER || 'siliconflow').toLowerCase();
+
+		switch (llmProvider) {
+			case 'siliconflow': {
+				if (!process.env.SILICONFLOW_API_KEY) {
+					console.log('⚠ 未设置 SILICONFLOW_API_KEY');
+					return null;
+				}
+				const model = process.env.SILICONFLOW_MODEL || 'deepseek-ai/DeepSeek-V3.2-Exp';
+				console.log(`✓ 使用 SiliconFlow 模型: ${model}`);
+				return new SiliconFlowProvider(model, undefined, debug);
+			}
+			case 'deepseek': {
+				if (!process.env.DEEPSEEK_API_KEY) {
+					console.log('⚠ 未设置 DEEPSEEK_API_KEY');
+					return null;
+				}
+				console.log('✓ 使用 DeepSeek API');
+				return new DeepSeekProvider(undefined, debug);
+			}
+			case 'openrouter': {
+				if (!process.env.OPENROUTER_API_KEY) {
+					console.log('⚠ 未设置 OPENROUTER_API_KEY');
+					return null;
+				}
+				const model = process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
+				console.log(`✓ 使用 OpenRouter 模型: ${model}`);
+				return new OpenRouterProvider(model, undefined, debug);
+			}
+			default: {
+				console.log(`⚠ 未知的 LLM_PROVIDER: ${llmProvider}，使用 SiliconFlow`);
+				if (!process.env.SILICONFLOW_API_KEY) {
+					return null;
+				}
+				const model = process.env.SILICONFLOW_MODEL || 'deepseek-ai/DeepSeek-V3.2-Exp';
+				return new SiliconFlowProvider(model, undefined, debug);
+			}
+		}
+	}
+
+	/**
 	 * 创建 AI 实例
 	 * @param type AI类型
 	 * @param playerStream 玩家流
 	 * @param debug 是否开启调试
-	 * @param opponentTeamData 对手队伍数据（仅DeepSeek AI使用）
-	 * @param lang 语言（仅DeepSeek AI使用）
-	 * @param backend PokéChamp AI 后端（OpenRouter 模型标识符或标准后端名称）
+	 * @param teamData 我方队伍数据（LLM AI使用）
+	 * @param opponentTeamData 对手队伍数据（LLM AI使用）
 	 */
 	static createAI(
 		type: string,
@@ -72,18 +118,6 @@ export class AIPlayerFactory {
 			throw new Error(`未知的 AI 类型: ${type}`);
 		}
 
-		// DeepSeek AI 特殊处理：如果没有API key，降级到智能AI
-		if (type === 'deepseek_ai' && !process.env.DEEPSEEK_API_KEY) {
-			console.log('⚠ 未设置 DEEPSEEK_API_KEY，使用 SmartAI');
-			return this.getDefaultAI(playerStream, debug);
-		}
-
-		// PokéChamp AI 特殊处理：需要 OPENROUTER_API_KEY
-		if (type === 'pokechamp_ai' && !process.env.OPENROUTER_API_KEY) {
-			console.log('⚠ 未设置 OPENROUTER_API_KEY，使用 Master AI');
-			return this.getMasterAI(playerStream, debug);
-		}
-
 		try {
 			let ai: AIPlayer;
 			switch (type) {
@@ -93,9 +127,16 @@ export class AIPlayerFactory {
 				case 'random_ai':
 					ai = new RandomAIPlayer(playerStream, {}, debug);
 					break;
-				case 'deepseek_ai':
-					ai = new DeepSeekAIPlayer(playerStream, teamData, opponentTeamData, debug);
+				case 'llm_ai': {
+					// 根据配置创建 LLM Provider
+					const provider = this.createLLMProvider(debug);
+					if (!provider) {
+						console.log('⚠ LLM Provider 创建失败，降级到 Smart AI');
+						return this.getDefaultAI(playerStream, debug);
+					}
+					ai = new LLMAIPlayer(playerStream, provider, teamData, opponentTeamData, debug);
 					break;
+				}
 				case 'master_ai':
 					ai = new MasterAIPlayer(playerStream, debug);
 					break;
@@ -112,5 +153,24 @@ export class AIPlayerFactory {
 			}
 			throw error;
 		}
+	}
+
+	/**
+	 * 使用 OpenRouter 创建 LLM AI
+	 * @param model OpenRouter 模型名称
+	 * @param playerStream 玩家流
+	 * @param debug 是否开启调试
+	 * @param teamData 我方队伍数据
+	 * @param opponentTeamData 对手队伍数据
+	 */
+	static createOpenRouterAI(
+		model: string,
+		playerStream: any,
+		debug: boolean = false,
+		teamData: any[] | null = null,
+		opponentTeamData: any[] | null = null
+	): AIPlayer {
+		const provider = new OpenRouterProvider(model, undefined, debug);
+		return new LLMAIPlayer(playerStream, provider, teamData, opponentTeamData, debug);
 	}
 }

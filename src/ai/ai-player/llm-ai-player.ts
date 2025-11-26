@@ -1,6 +1,6 @@
 /**
- * DeepSeek AI 对战系统
- * 使用 DeepSeek API 进行智能对战决策
+ * LLM AI 对战系统
+ * 使用 LLM Provider（DeepSeek、OpenRouter等）进行智能对战决策
  */
 
 import * as dotenv from 'dotenv';
@@ -11,7 +11,7 @@ import { AIPlayer } from '../ai-player';
 import { Dex } from 'pokemon-showdown/dist/sim/dex';
 import { Translator } from '../../support/translator';
 import { DamageCalculator } from '../../support/damage-calculator';
-import axios from 'axios';
+import { LLMProvider } from './llm_provider';
 import type {
 	SwitchRequest,
 	TeamPreviewRequest,
@@ -33,11 +33,9 @@ interface OpponentPokemon {
 	teraType?: string; // 太晶化属性
 }
 
-export class DeepSeekAIPlayer extends AIPlayer {
-	private readonly apiKey: string;
-	private readonly apiUrl: string = 'https://api.deepseek.com/v1/chat/completions';
+export class LLMAIPlayer extends AIPlayer {
+	private readonly llmProvider: LLMProvider;
 	private readonly translator: Translator;
-	private conversationHistory: Array<{ role: string; content: string }> = [];
 	private lastRequest: SwitchRequest | TeamPreviewRequest | MoveRequest | null = null;
 	private opponentTeam: { [name: string]: OpponentPokemon } = {};
 	private teamData: any[] | null = null;
@@ -58,7 +56,7 @@ export class DeepSeekAIPlayer extends AIPlayer {
 	private myTeraType: string | null = null; // 我方太晶化的属性
 
 	// 作弊功能 - 80%概率获取用户操作
-	private cheatProbability: number = 0.8; // 作弊概率
+	private cheatProbability: number = 0.5; // 作弊概率
 	private playerChoice: string | null = null; // 用户的招式/切换选择
 	private playerTeamOrder: string | null = null; // 用户的队伍预览顺序
 	private playerChoiceResolver: (() => void) | null = null; // 用于等待用户选择的resolver
@@ -66,19 +64,21 @@ export class DeepSeekAIPlayer extends AIPlayer {
 
 	constructor(
 		playerStream: any,
+		llmProvider: LLMProvider,
 		teamData: any[] | null = null,
 		opponentTeamData: any[] | null = null,
 		debug = false
 	) {
 		super(playerStream, debug);
-		this.apiKey = process.env.DEEPSEEK_API_KEY || '';
+		this.llmProvider = llmProvider;
 		this.translator = Translator.getInstance();
 		this.teamData = teamData;
 		this.opponentTeamData = opponentTeamData;
+		this.debugmode = debug;
 
 		// 从环境变量读取作弊概率配置
-		const cheatProb = parseFloat(process.env.DEEPSEEK_CHEAT_PROBABILITY || '0.8');
-		this.cheatProbability = isNaN(cheatProb) ? 0.8 : Math.max(0, Math.min(1, cheatProb));
+		const cheatProb = parseFloat(process.env.AI_CHEAT_PROBABILITY || '0.5');
+		this.cheatProbability = isNaN(cheatProb) ? 0.5 : Math.max(0, Math.min(1, cheatProb));
 	}
 
 	/**
@@ -700,7 +700,7 @@ ${actions}`;
 			const damageCalculation = this.calculateAllDamages(request);
 			const fullPrompt = damageCalculation ? `${prompt}\n${damageCalculation}` : prompt;
 
-			const aiResponse = await this.callDeepSeek(fullPrompt, systemPrompt);
+			const aiResponse = await this.callLLM(fullPrompt, systemPrompt);
 
 			if (aiResponse) {
 				const parsed = this.parseAIResponse(aiResponse);
@@ -725,7 +725,7 @@ ${actions}`;
 	 */
 	private async chooseTeamPreviewWithAI(request: TeamPreviewRequest): Promise<string | null> {
 		if (!this.lastRequest) return null;
-		console.log('\n等待DeepSeek选择首发宝可梦...');
+		console.log('\n等待AI选择首发宝可梦...');
 
 		// 注意：队伍预览只发生一次，不需要清空旧数据
 		// 如果作弊概率大于0，等待用户队伍顺序选择完成
@@ -769,7 +769,7 @@ ${extraInfo}`;
 			// 如果有伤害计算，添加到 prompt
 			const fullPrompt = damageCalcForFirstPokemon ? `${prompt}\n${damageCalcForFirstPokemon}` : prompt;
 
-			const aiResponse = await this.callDeepSeek(fullPrompt, systemPrompt);
+			const aiResponse = await this.callLLM(fullPrompt, systemPrompt);
 			if (aiResponse) {
 				const parsed = this.parseAIResponse(aiResponse);
 				if (parsed && parsed.type === 'team' && parsed.team) {
@@ -871,7 +871,7 @@ ${extraInfo}`;
 			// 在 prompt 中添加伤害计算结果（包含对手切换预测）
 			const damageCalculation = this.calculateAllDamages(request, playerChoiceInfo);
 			const fullPrompt = damageCalculation ? `${prompt}\n${damageCalculation}` : prompt;
-			const aiResponse = await this.callDeepSeek(fullPrompt, systemPrompt);
+			const aiResponse = await this.callLLM(fullPrompt, systemPrompt);
 
 			if (aiResponse) {
 				const parsed = this.parseAIResponse(aiResponse);
@@ -1568,48 +1568,33 @@ ${extraInfo}`;
 	}
 
 	/**
-	 * 调用 DeepSeek API
+	 * 调用 LLM API
 	 */
-	private async callDeepSeek(prompt: string, systemPrompt: string): Promise<string | null> {
-		if (this.debugmode) console.log('CallDeepSeek: ', systemPrompt , '\n', prompt);
-		if (!this.apiKey) {
+	private async callLLM(prompt: string, systemPrompt: string): Promise<string | null> {
+		if (this.debugmode) {
+			console.log(`Call ${this.llmProvider.getName()}: `, systemPrompt, '\n', prompt);
+		}
+
+		if (!this.llmProvider.isAvailable()) {
+			console.error(`❌ ${this.llmProvider.getName()} API 不可用`);
 			return null;
 		}
 
 		try {
-			const messages = [
-				{ role: 'system', content: systemPrompt },
-				...this.conversationHistory.slice(-6),
-				{ role: 'user', content: prompt }
-			];
+			const response = await this.llmProvider.callAPI(prompt, systemPrompt);
 
-			const response = await axios.post(
-				this.apiUrl,
-				{
-					model: 'deepseek-chat',
-					messages: messages,
-					temperature: 0,
-					max_tokens: 500
-				},
-				{
-					headers: {
-						'Content-Type': 'application/json',
-						'Authorization': `Bearer ${this.apiKey}`
-					},
-					timeout: 60000
+			if (!response.success) {
+				if (this.debugmode) {
+					console.error(`${this.llmProvider.getName()} API 调用失败:`, response.error);
 				}
-			);
+				return null;
+			}
 
-			const aiResponse = response.data.choices[0].message.content;
-
-			this.conversationHistory.push(
-				{ role: 'user', content: prompt },
-				{ role: 'assistant', content: aiResponse }
-			);
-
-			return aiResponse;
+			return response.content;
 		} catch (error) {
-			if (this.debugmode) console.error('DeepSeek API 调用失败:', error);
+			if (this.debugmode) {
+				console.error(`${this.llmProvider.getName()} API 调用异常:`, error);
+			}
 			return null;
 		}
 	}

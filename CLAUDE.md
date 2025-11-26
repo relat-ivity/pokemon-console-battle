@@ -15,7 +15,7 @@
 ### 核心特性
 
 - 直接在 Node.js 进程中运行，无需额外服务器
-- 支持 4 种 AI 对手：DeepSeek AI、Master AI、Smart AI、Random AI
+- 支持 4 种 AI 对手：LLM AI、Master AI、Smart AI、Random AI
 - 启动命令：`npm start`
 - 完整的第九代对战机制（包括太晶化）
 - 全中文本地化系统
@@ -57,7 +57,7 @@ AI 决策 (通过 AIPlayer 层次结构)
 - 管理玩家输入和队伍选择
 - 入口函数：`startPVEBattle()` 异步函数
 - 使用 readline 进行交互式 CLI 输入
-- 支持：DeepSeek AI、Master AI、Smart AI、Random AI
+- 支持：LLM AI（可配置硅基流动/DeepSeek/OpenRouter）、Master AI、Smart AI、Random AI
 
 **2. message-handler.js** (1638 行) - 协议解析器
 - 解析 50+ 种 Pokemon Showdown 战斗消息类型
@@ -106,7 +106,8 @@ AI 决策 (通过 AIPlayer 层次结构)
 
 **工厂：** `ai-player-factory.ts`
 - 根据类型创建 AI 实例
-- 优雅降级（DeepSeek 无 API 密钥时 → Smart AI）
+- 根据 LLM_PROVIDER 环境变量选择 LLM 提供商
+- 优雅降级（LLM API 密钥缺失时 → Smart AI）
 
 **AI 实现：**
 
@@ -120,12 +121,18 @@ AI 决策 (通过 AIPlayer 层次结构)
    - 评估招式威力和属性克制
    - 智能宝可梦切换
 
-3. **deepseek-ai-player.ts** - 基于 LLM 的 AI
-   - 使用 DeepSeek API 进行决策
+3. **llm-ai-player.ts** - 基于 LLM 的 AI
+   - 支持多种 LLM 提供商（硅基流动、DeepSeek、OpenRouter）
+   - 使用依赖注入的 LLMProvider 接口
    - 维护 3 回合对话历史
    - **支持作弊模式**（可以获取对手的招式）
-   - 需要 `DEEPSEEK_API_KEY` 环境变量
    - API 失败时优雅降级到 Smart AI
+
+   **LLM Provider 架构** (`src/ai/ai-player/llm_provider/`):
+   - `llm-provider.ts` - 抽象基类，定义统一接口
+   - `siliconflow-provider.ts` - 硅基流动 API（默认，推荐国内用户）
+   - `deepseek-provider.ts` - DeepSeek 官方 API
+   - `openrouter-provider.ts` - OpenRouter API（支持 Claude、GPT-4 等）
 
 4. **random-ai-player.ts** - 随机决策 AI
    - 用于测试目的
@@ -160,7 +167,9 @@ npm start
 ```
 
 **支持的 AI 对手：**
-- DeepSeek AI（需要 `DEEPSEEK_API_KEY`，支持作弊模式）
+- LLM AI（支持硅基流动/DeepSeek/OpenRouter，可配置作弊模式）
+  - 默认使用硅基流动（推荐国内用户）
+  - 需要配置相应的 API Key
 - Master AI（高级启发式）
 - Smart AI（基础启发式）
 - Random AI（用于测试）
@@ -173,7 +182,7 @@ npm start
 ### 其他命令
 
 ```bash
-npm test              # 运行 deepseek 测试
+npm test              # 运行 LLM AI 测试
 ```
 
 **注意：** `postinstall` 钩子会在 `npm install` 后自动运行 `npm run build`
@@ -241,7 +250,7 @@ const parts = line.split('|');
 
 ## AI 配置
 
-### DeepSeek AI 配置
+### LLM AI 配置
 
 **环境变量配置（使用 .env 文件）：**
 
@@ -250,17 +259,33 @@ const parts = line.split('|');
 cp .env.example .env
 
 # 2. 编辑 .env 文件，填写以下内容：
-DEEPSEEK_API_KEY=your-api-key-here
-DEEPSEEK_CHEAT_PROBABILITY=0.5  # 可选，作弊成功概率 0-1
+
+# 选择 LLM 提供商（siliconflow, deepseek, openrouter）
+LLM_PROVIDER=siliconflow  # 默认推荐硅基流动
+
+# 硅基流动配置（推荐国内用户）
+SILICONFLOW_API_KEY=sk-your-siliconflow-api-key-here
+SILICONFLOW_MODEL=deepseek-ai/DeepSeek-V3.2-Exp
+
+# DeepSeek 配置
+DEEPSEEK_API_KEY=sk-your-deepseek-api-key-here
+
+# OpenRouter 配置
+OPENROUTER_API_KEY=sk-or-your-openrouter-api-key-here
+OPENROUTER_MODEL=anthropic/claude-3.5-sonnet
+
+# 作弊概率（可选）
+AI_CHEAT_PROBABILITY=0.5  # 0-1 之间，默认 0.5
 ```
 
 **特性：**
-- 需要 `DEEPSEEK_API_KEY` 环境变量
-- 可选的作弊模式（`DEEPSEEK_CHEAT_PROBABILITY`）
+- 支持多种 LLM 提供商（硅基流动、DeepSeek、OpenRouter）
+- 可选的作弊模式（`AI_CHEAT_PROBABILITY`）
 - API 失败或未设置密钥时自动降级到 Smart AI
 - 配置了关于宝可梦对战策略的系统提示词
 - 维护 3 轮对话历史以保持上下文
-- 详见 `docs/DEEPSEEK_AI_GUIDE.md` 了解详细设置
+- 详见 `docs/LLM_AI_GUIDE.md` 了解详细设置
+- 详见 `docs/LLM_PROVIDER_CONFIG.md` 了解提供商配置
 
 ## 常见开发任务
 
@@ -284,7 +309,8 @@ DEEPSEEK_CHEAT_PROBABILITY=0.5  # 可选，作弊成功概率 0-1
 - 使用 Random AI 进行快速调试
 - 使用 Smart AI 进行可预测的测试用例
 - 使用 Master AI 测试更复杂的策略
-- DeepSeek AI 需要 `DEEPSEEK_API_KEY`；先使用本地 AI 测试
+- LLM AI 需要配置相应的 API Key；建议先使用本地 AI 测试
+- 硅基流动是默认推荐的 LLM 提供商（国内访问快速稳定）
 
 ### 处理翻译
 
@@ -306,7 +332,7 @@ DEEPSEEK_CHEAT_PROBABILITY=0.5  # 可选，作弊成功概率 0-1
 ### Node.js 依赖
 
 - **pokemon-showdown**: 战斗模拟器和宝可梦数据库
-- **axios**: HTTP 客户端（用于 DeepSeek API 调用）
+- **axios**: HTTP 客户端（用于 LLM API 调用）
 - **readline**: Node.js 模块，用于 CLI 输入/输出
 - **@types/node**: TypeScript 类型定义
 - **dotenv**: 环境变量加载（用于 .env 文件）
@@ -333,6 +359,9 @@ DEEPSEEK_CHEAT_PROBABILITY=0.5  # 可选，作弊成功概率 0-1
 ## 测试入口
 
 - `npm start` - 启动完整对战（推荐），可选择任何 AI 对手
-- `npm test` - 运行 `tests/test-deepseek.js` 进行 DeepSeek AI 测试
+- `npm test` - 运行 `tests/test-deepseek.js` 进行 LLM AI 测试
 - 使用 Random AI 或 Smart AI 测试而无需 API 依赖
-- 使用 DeepSeek AI 测试需要在 `.env` 文件中配置 `DEEPSEEK_API_KEY`
+- 使用 LLM AI 测试需要在 `.env` 文件中配置相应的 API Key
+  - 推荐硅基流动：`SILICONFLOW_API_KEY`
+  - 或 DeepSeek：`DEEPSEEK_API_KEY`
+  - 或 OpenRouter：`OPENROUTER_API_KEY`

@@ -7,21 +7,13 @@
 
 require('dotenv').config();
 const Sim = require('pokemon-showdown');
-const {
-	AIPlayerFactory
-} = require('../../dist/ai/ai-player-factory');
+const { AIPlayerFactory } = require('../../dist/ai/ai-player-factory');
 const readline = require('readline');
 const fs = require('fs');
 const path = require('path');
-const {
-	Translator
-} = require('../../dist/support/translator');
-const {
-	BattleState
-} = require('../battle_common/battle-state');
-const {
-	BattleMessageHandler
-} = require('../battle_common/message-handler');
+const { Translator } = require('../../dist/support/translator');
+const {	BattleState } = require('../battle_common/battle-state');
+const {	BattleMessageHandler } = require('../battle_common/message-handler');
 const {
 	displayTeamInfo,
 	displayChoices,
@@ -57,7 +49,7 @@ function prompt(question) {
  * @returns {{ team: Array, fileName: string } | null}
  */
 function loadTeamFromFile(format) {
-	const teamsDir = path.join(__dirname, './teams', format);
+	const teamsDir = path.join(__dirname, '../../teams', format);
 
 	if (!fs.existsSync(teamsDir)) {
 		return null;
@@ -97,14 +89,7 @@ function generateValidTeam(format) {
 		console.log(`⚠️  未找到 ${format} 的预设队伍，使用随机生成`);
 	}
 
-	const validator = new Sim.TeamValidator(format);
 	let team = Sim.Teams.generate('gen9randombattle');
-
-	// 重试直到生成有效队伍
-	while (validator.validateTeam(team) != null) {
-		team = Sim.Teams.generate('gen9randombattle');
-	}
-
 	return {
 		team: team,
 		fileName: null
@@ -115,15 +100,15 @@ function generateValidTeam(format) {
  * 选择对手
  */
 async function selectOpponent() {
-	console.log("\n请选择对手：\n    1. DeepSeek AI\n    2. 本地大师AI\n    3. 本地智能AI\n    4. 随机行为AI");
+	console.log("\n请选择对手：\n    1. LLM AI (可配置硅基流动/DeepSeek/OpenRouter等API)\n    2. 本地大师AI\n    3. 本地智能AI\n    4. 随机行为AI");
 	const opponentChoice = await prompt('请输入对手编号:');
 
 	let opponent = '本地智能AI';
 	let aiType = 'smart_ai';
 
 	if (opponentChoice === '1') {
-		opponent = 'DeepSeek AI';
-		aiType = 'deepseek_ai';
+		opponent = 'LLM AI';
+		aiType = 'llm_ai';
 	} else if (opponentChoice === '2') {
 		opponent = 'Master AI';
 		aiType = 'master_ai';
@@ -134,7 +119,7 @@ async function selectOpponent() {
 		opponent = '随机AI';
 		aiType = 'random_ai';
 	} else {
-		console.log("未知对手，将使用本地智能AI");
+		console.log("> 未知对手，将使用本地智能AI");
 	}
 
 	return {
@@ -312,12 +297,16 @@ async function startMessageLoop(battleState, streams, handlePlayerChoice, teamOr
 								console.log('\n等待对手行动...');
 							} else if (request.teamPreview) {
 								// 队伍预览请求立即处理
+								// 对于非随机对战，使用玩家选择的队伍顺序
+								// 对于随机对战，使用默认顺序（1,2,3,4,5,6）
+								const finalTeamOrder = teamOrder || '123456';
+
 								// 通知 AI 玩家的队伍顺序（用于作弊功能）
 								if (ai && typeof ai.setPlayerTeamOrder === 'function') {
-									ai.setPlayerTeamOrder(teamOrder);
+									ai.setPlayerTeamOrder(finalTeamOrder);
 								}
-								streams.p1.write(`team ${teamOrder}`);
-								if (debug_mode) console.log(`[Debug] 正在应用队伍顺序: ${teamOrder}`);
+								streams.p1.write(`team ${finalTeamOrder}`);
+								if (debug_mode) console.log(`[Debug] 正在应用队伍顺序: ${finalTeamOrder}`);
 								battleState.clearCurrentRequest();
 							} else if (request.forceSwitch && !battleState.isProcessingChoice) {
 								// 强制切换请求：保存请求，等待 |turn| 消息后处理
@@ -395,6 +384,7 @@ async function startPVEBattle() {
 	if (p2result.fileName) {
 		console.log(`✓ AI队伍: ${p2result.fileName}`);
 	}
+	console.log('');
 
 	// 创建战斗流
 	const streams = Sim.getPlayerStreams(new Sim.BattleStream());
@@ -408,10 +398,22 @@ async function startPVEBattle() {
 	let actualOpponentName = opponent;
 	let warningMessage = '';
 
-	// DeepSeek 特殊处理：检查是否降级
-	if (aiType === 'deepseek_ai' && !process.env.DEEPSEEK_API_KEY) {
-		actualOpponentName = '本地智能AI (DeepSeek降级)';
-		warningMessage = '⚠️  未检测到 DEEPSEEK_API_KEY，已降级到本地智能AI';
+	// LLM AI 特殊处理：显示实际使用的 Provider
+	if (aiType === 'llm_ai') {
+		const llmProvider = (process.env.LLM_PROVIDER || 'siliconflow').toLowerCase();
+
+		if (llmProvider === 'siliconflow' && process.env.SILICONFLOW_API_KEY) {
+			const model = process.env.SILICONFLOW_MODEL || 'DeepSeek-V3.2-Exp';
+			actualOpponentName = `LLM AI (硅基流动/${model.split('/').pop()})`;
+		} else if (llmProvider === 'openrouter' && process.env.OPENROUTER_API_KEY) {
+			const model = process.env.OPENROUTER_MODEL || 'claude-3.5-sonnet';
+			actualOpponentName = `LLM AI (OpenRouter/${model.split('/').pop()})`;
+		} else if (llmProvider === 'deepseek' && process.env.DEEPSEEK_API_KEY) {
+			actualOpponentName = 'LLM AI (DeepSeek)';
+		} else {
+			actualOpponentName = '本地智能AI (LLM降级)';
+			warningMessage = '⚠️  未检测到有效的 LLM 配置，已降级到本地智能AI';
+		}
 	}
 
 	// PokéChamp 特殊处理：检查 LLM 后端和 API 密钥
@@ -444,7 +446,7 @@ async function startPVEBattle() {
 		}
 	}
 
-	console.log(`\n✓ 已创建对手: ${actualOpponentName}`);
+	console.log(`✓ 已创建对手: ${actualOpponentName}`);
 	if (debug_mode && warningMessage) {
 		console.log(warningMessage);
 	}
@@ -466,8 +468,13 @@ async function startPVEBattle() {
 	});
 	console.log(p2teaminfo);
 
-	// 选择首发宝可梦
-	const teamOrder = await selectLeadPokemon(p1team);
+	// 选择首发宝可梦（仅非随机对战需要）
+	let teamOrder = null;
+	if (!format.includes('random')) {
+		teamOrder = await selectLeadPokemon(p1team);
+	} else {
+		console.log('\n✓ 随机对战模式，系统将自动选择首发宝可梦');
+	}
 
 	// 创建战斗状态
 	const battleState = new BattleState(p1team, p2team);

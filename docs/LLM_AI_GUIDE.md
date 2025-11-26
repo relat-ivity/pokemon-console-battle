@@ -1,10 +1,6 @@
-# DeepSeek AI 对战系统
+# LLM AI 对战系统
 
-## 简介
-
-本系统集成了 DeepSeek AI，让你可以与真正的大语言模型进行宝可梦对战！AI 会基于实时战场信息分析局势并做出决策。
-
-## 安装步骤
+## 快速开始
 
 ### 1. 安装依赖
 
@@ -12,82 +8,34 @@
 npm install
 ```
 
-### 2. 获取 DeepSeek API 密钥
+### 2. 配置 API Key
 
-1. 访问 [DeepSeek 官网](https://platform.deepseek.com/)
-2. 注册账号并登录
-3. 在控制台创建 API 密钥
-4. 复制你的 API 密钥
-
-### 3. 设置环境变量
-
-#### 方法一：使用 .env 文件（推荐）
-
-这是最简单的方法，无需设置系统环境变量：
-
-1. 复制 `.env.example` 文件为 `.env`：
-   ```bash
-   copy .env.example .env
-   ```
-
-2. 用文本编辑器打开 `.env` 文件，将 `your_api_key_here` 替换为你的实际 API 密钥：
-   ```
-   DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-   ```
-
-3. 保存文件，直接运行即可：
-   ```bash
-   npm start
-   ```
-
-#### 方法二：临时设置环境变量（当前会话有效）
-
-**Windows (PowerShell):**
-```powershell
-$env:DEEPSEEK_API_KEY="你的API密钥"
-npm start
-```
-
-**Windows (CMD):**
-```cmd
-set DEEPSEEK_API_KEY=你的API密钥
-npm start
-```
-
-**Linux / macOS:**
-```bash
-export DEEPSEEK_API_KEY="你的API密钥"
-npm start
-```
-
-## 使用方法
-
-### 启动对战
+推荐使用**硅基流动**（默认）：
 
 ```bash
-node pve-battle.js
+# 复制配置文件
+cp .env.example .env
+
+# 编辑 .env 文件
+LLM_PROVIDER=siliconflow
+SILICONFLOW_API_KEY=sk-your-api-key-here
+SILICONFLOW_MODEL=deepseek-ai/DeepSeek-V3.2-Exp
 ```
 
-- **如果设置了 API 密钥**：使用 DeepSeek AI 对战
-- **如果没有设置 API 密钥**：自动回退到本地智能 AI
+### 3. 启动游戏
 
-### AI 决策流程
+```bash
+npm start
+```
 
-1. **收集战场信息**
-   - 双方宝可梦状态（HP、属性、能力变化、状态异常）
-   - 可用招式（威力、命中率、PP、属性、效果描述）
-   - 特性和携带道具
-   - 太晶化状态
+选择 "LLM AI" 对手即可！
 
-2. **AI 分析**
-   - DeepSeek AI 会分析当前局势
-   - 考虑属性克制、招式威力、命中率
-   - 评估 HP 状况和能力变化
-   - 决定最优行动
+## AI 决策流程
 
-3. **执行决策**
-   - AI 会显示思考过程和理由
-   - 执行选定的招式或切换宝可梦
+1. **收集战场信息** - 双方宝可梦状态、招式、特性、道具等
+2. **精确伤害计算** - 自动计算所有招式伤害并提供给 AI
+3. **AI 策略分析** - 基于战场信息和伤害数据做出决策
+4. **执行决策** - 使用招式或切换宝可梦
 
 ### 提示词示例
 
@@ -167,7 +115,7 @@ node pve-battle.js
 6. 对天蝎王 突飞猛扑：无效 冰旋：80.7%-95.5% 高速旋转：12.8%-15.1%
 ```
 
-AI响应结果
+### AI 响应示例
 
 ```txt
 ParseAIResponse:  move 1 使用流星群直接击败雄伟牙阻止其撒钉，信息中有【重要情报】对手使用隐形岩
@@ -178,59 +126,20 @@ ParseAIResponse:  move 1 使用流星群直接击败雄伟牙阻止其撒钉，�
   → 【你】 雄伟牙 倒下了!
 ```
 
-## 注意事项
+## 功能特性
 
-1. **API 费用**
-   - DeepSeek API 需要付费使用
-   - 每次对战约调用 10-30 次 API
-   - 建议在官网查看当前费率
+### 作弊模式（可选）
 
-2. **网络要求**
-   - 需要稳定的网络连接
-   - 每次决策需要 2-5 秒响应时间
-   - 如果超时（10秒），会自动使用备用 AI
+可配置 AI 获取对手操作信息的概率：
 
-3. **API 调用限制**
-   - 注意 API 的速率限制
-   - 如果频繁调用可能触发限流
-
-## 自定义配置
-
-### 修改 AI 行为
-
-编辑 `deepseek-ai.js` 中的系统提示词：
-
-```javascript
-const systemPrompt = `你是一个宝可梦对战专家。你需要根据当前战场状态...`;
+```bash
+AI_CHEAT_PROBABILITY=0.5  # 50% 概率获取对手操作（默认）
+AI_CHEAT_PROBABILITY=0    # 完全公平对战
+AI_CHEAT_PROBABILITY=1    # 100% 获取对手操作
 ```
 
-### 调整对话历史长度
+### 支持的 Provider
 
-```javascript
-...this.conversationHistory.slice(-6), // 保留最近3轮（改为 -10 保留5轮）
-```
-
-### 修改超时时间
-
-```javascript
-timeout: 10000 // 10秒超时（修改为其他值，单位：毫秒）
-```
-
-## 进阶使用
-
-### 使用其他 AI 模型
-
-修改 `deepseek-ai.js`：
-
-```javascript
-model: 'deepseek-chat', // 改为其他模型名称
-```
-
-### 调整 AI 创造性
-
-```javascript
-temperature: 0, // 0.0-2.0，值越高越有创造性
-```
-
-祝你对战愉快！
-
+- **硅基流动**（默认，推荐）- 国内服务，速度快，价格低
+- **DeepSeek** - DeepSeek 官方 API
+- **OpenRouter** - 支持 Claude、GPT-4 等多种模型
