@@ -1,0 +1,66 @@
+Ribombee @ Focus Sash  
+Ability: Shield Dust  
+Shiny: Yes  
+Tera Type: Steel  
+EVs: 252 SpA / 4 SpD / 252 Spe  
+Timid Nature  
+IVs: 0 Atk  
+- Sticky Web  
+- Moonblast  
+- Psychic Noise  
+- Skill Swap  
+
+Gholdengo @ Air Balloon  
+Ability: Good as Gold  
+Shiny: Yes  
+Tera Type: Fighting  
+EVs: 72 HP / 252 SpA / 184 Spe  
+Modest Nature  
+IVs: 0 Atk  
+- Nasty Plot  
+- Shadow Ball  
+- Psyshock  
+- Focus Blast  
+
+Great Tusk @ Booster Energy  
+Ability: Protosynthesis  
+Shiny: Yes  
+Tera Type: Ice  
+EVs: 252 Atk / 4 SpD / 252 Spe  
+Jolly Nature  
+- Headlong Rush  
+- Close Combat  
+- Ice Spinner  
+- Rapid Spin  
+
+Raging Bolt @ Booster Energy  
+Ability: Protosynthesis  
+Tera Type: Bug  
+EVs: 4 Def / 252 SpA / 252 Spe  
+Modest Nature  
+IVs: 20 Atk  
+- Thunderbolt  
+- Thunderclap  
+- Dragon Pulse  
+- Calm Mind  
+
+Ogerpon-Cornerstone (F) @ Cornerstone Mask  
+Ability: Sturdy  
+Tera Type: Rock  
+EVs: 252 Atk / 4 SpD / 252 Spe  
+Adamant Nature  
+- Ivy Cudgel  
+- Power Whip  
+- Low Kick  
+- Taunt  
+
+Ceruledge @ Focus Sash  
+Ability: Weak Armor  
+Shiny: Yes  
+Tera Type: Fighting  
+EVs: 252 Atk / 4 SpD / 252 Spe  
+Adamant Nature  
+- Swords Dance  
+- Bitter Blade  
+- Close Combat  
+- Shadow Sneak 

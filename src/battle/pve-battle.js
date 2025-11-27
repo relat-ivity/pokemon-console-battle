@@ -46,9 +46,11 @@ function prompt(question) {
 
 /**
  * 从文件加载队伍
+ * @param {string} format - 对战格式 (例如: gen9ou)
+ * @param {string|null} teamFile - 指定的队伍文件 (例如: gen9ou/gen9ou1.txt)，null 表示随机选择
  * @returns {{ team: Array, fileName: string } | null}
  */
-function loadTeamFromFile(format) {
+function loadTeamFromFile(format, teamFile = null) {
 	const teamsDir = path.join(__dirname, '../../teams', format);
 
 	if (!fs.existsSync(teamsDir)) {
@@ -60,26 +62,45 @@ function loadTeamFromFile(format) {
 		return null;
 	}
 
-	// 随机选择一个队伍文件
-	const randomFile = teamFiles[Math.floor(Math.random() * teamFiles.length)];
-	const teamText = fs.readFileSync(path.join(teamsDir, randomFile), 'utf-8');
+	let selectedFile;
+
+	// 如果指定了队伍文件，尝试加载
+	if (teamFile) {
+		// 从 teamFile 中提取文件名（支持 gen9ou/gen9ou1.txt 格式）
+		const fileName = teamFile.includes('/') ? teamFile.split('/').pop() : teamFile;
+		const filePath = path.join(teamsDir, fileName);
+
+		if (fs.existsSync(filePath)) {
+			selectedFile = fileName;
+		} else {
+			console.log(`⚠️  指定的队伍文件 ${teamFile} 不存在，将随机选择`);
+			selectedFile = teamFiles[Math.floor(Math.random() * teamFiles.length)];
+		}
+	} else {
+		// 随机选择一个队伍文件
+		selectedFile = teamFiles[Math.floor(Math.random() * teamFiles.length)];
+	}
+
+	const teamText = fs.readFileSync(path.join(teamsDir, selectedFile), 'utf-8');
 
 	// 使用 Pokemon Showdown 解析队伍
 	const team = Sim.Teams.import(teamText);
 	return {
 		team,
-		fileName: randomFile
+		fileName: selectedFile
 	};
 }
 
 /**
  * 生成符合规则的队伍
+ * @param {string} format - 对战格式
+ * @param {string|null} teamFile - 指定的队伍文件，null 表示随机选择
  * @returns {{ team: Array, fileName: string | null }}
  */
-function generateValidTeam(format) {
+function generateValidTeam(format, teamFile = null) {
 	// 对于非随机对战格式，尝试从文件加载队伍
 	if (!format.includes('random')) {
-		const result = loadTeamFromFile(format);
+		const result = loadTeamFromFile(format, teamFile);
 		if (result && result.team && result.team.length > 0) {
 			return {
 				team: result.team,
@@ -372,8 +393,13 @@ async function startPVEBattle() {
 	const format = process.env.LOCAL_BATTLE_FORMAT || 'gen9ou';
 	const playerName = 'Player';
 	console.log(`\n✓ 对战格式: ${format}`);
-	const p1result = generateValidTeam(format);
-	const p2result = generateValidTeam(format);
+
+	// 获取队伍配置
+	const playerTeamFile = process.env.PLAYER_TEAM || null;
+	const aiTeamFile = process.env.AI_TEAM || null;
+
+	const p1result = generateValidTeam(format, playerTeamFile);
+	const p2result = generateValidTeam(format, aiTeamFile);
 	const p1team = p1result.team;
 	const p2team = p2result.team;
 

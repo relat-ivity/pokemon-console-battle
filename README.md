@@ -10,7 +10,7 @@ Version：1.0.0
 
 ## ✨ 特性
 
-- 🎮 **完整的第九代对战系统**：支持太晶化、可使用teams文件夹的预设队伍对战，支持 gen9randombattle 和 gen9ou 格式
+- 🎮 **完整的第九代对战系统**：支持太晶化、可配置队伍，支持 gen9randombattle 和 gen9ou 格式
 - 🤖 **多种AI对手**：
   - **LLM AI** - 支持硅基流动/DeepSeek/OpenRouter 等多种大模型，可配置作弊模式
   - **本地大师AI** - 强大的本地策略AI
@@ -42,22 +42,38 @@ npm install
 # 设置环境变量文件
 copy .env.example .env
 
-# 安装运行
+# 启动游戏
 npm start
 ```
 ---
 
 ## 📖 使用说明
 
+### 队伍配置
+
+项目有预设的队伍文件位于 `teams/` 目录下，也可自己配置使用的队伍
+
+**配置方法：**
+
+编辑 `.env` 文件，指定玩家和 AI 使用的队伍：
+
+```bash
+# 玩家队伍文件（可选 - 默认随机选择）
+PLAYER_TEAM=gen9ou/gen9ou1.txt
+
+# AI 队伍文件（可选 - 默认随机选择）
+AI_TEAM=gen9ou/gen9ou2.txt
+```
+
 ### 对战指令
 
 在对战中，你可以使用以下指令：
 
 ```bash
-move 2          # 使用第2个招式，可简化为 m2
-switch 2        # 切换到第2只宝可梦，先用team查看宝可梦编号再换人，可简化为 s2
-move 1 tera     # 使用第1个招式并太晶化，可简化为m1 t
-team            # 查看所有宝可梦状态
+move 2 或 m2          # 使用第2个招式，
+switch 2 或 s2        # 切换到第2只宝可梦，先用team查看宝可梦编号再换人
+move 1 tera 或 m1 t   # 使用第1个招式并太晶化
+team                  # 查看所有宝可梦状态
 ```
 
 ### AI 对手

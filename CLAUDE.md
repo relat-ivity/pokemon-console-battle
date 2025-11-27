@@ -276,16 +276,30 @@ OPENROUTER_MODEL=anthropic/claude-3.5-sonnet
 
 # 作弊概率（可选）
 AI_CHEAT_PROBABILITY=0.5  # 0-1 之间，默认 0.5
+
+# 队伍配置（可选）
+PLAYER_TEAM=gen9ou/gen9ou1.txt  # 指定玩家队伍文件
+AI_TEAM=gen9ou/gen9ou2.txt      # 指定 AI 队伍文件
 ```
 
 **特性：**
 - 支持多种 LLM 提供商（硅基流动、DeepSeek、OpenRouter）
 - 可选的作弊模式（`AI_CHEAT_PROBABILITY`）
+- 可配置玩家和 AI 的队伍文件（`PLAYER_TEAM`、`AI_TEAM`）
 - API 失败或未设置密钥时自动降级到 Smart AI
 - 配置了关于宝可梦对战策略的系统提示词
 - 维护 3 轮对话历史以保持上下文
 - 详见 `docs/LLM_AI_GUIDE.md` 了解详细设置
 - 详见 `docs/LLM_PROVIDER_CONFIG.md` 了解提供商配置
+
+### 队伍配置
+
+**队伍文件选择：**
+- 默认情况下，玩家和 AI 的队伍会从 `teams/{format}/` 目录中随机选择
+- 可以通过环境变量指定固定的队伍文件：
+  - `PLAYER_TEAM`: 玩家使用的队伍文件（例如：`gen9ou/gen9ou1.txt`）
+  - `AI_TEAM`: AI 使用的队伍文件（例如：`gen9ou/gen9ou2.txt`）
+- 如果指定的文件不存在，系统会自动回退到随机选择
 
 ## 常见开发任务
 
