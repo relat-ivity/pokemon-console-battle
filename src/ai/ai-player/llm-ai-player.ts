@@ -43,6 +43,7 @@ export class LLMAIPlayer extends AIPlayer {
 
 	// debug设置
 	private debugmode: boolean = false;
+	private aiResponseLogMode: boolean = false;
 
 	// 场地状态跟踪
 	private weather: string | null = null;
@@ -1194,8 +1195,8 @@ ${extraInfo}`;
 	 */
 	private getBaseSystemPrompt(): string {
 		let debugInfo = '';
-		if (this.debugmode) {
-			debugInfo = '，并在后面加上一句解释，后面再加一句话告诉信息中有没有“【重要情报】”，如果有翻译一下对手的操作是什么';
+		if (this.debugmode || this.aiResponseLogMode) {
+			debugInfo = '，并在后面加上一句解释';
 		}
 		return `你是一名宝可梦对战专家，精通单打对战策略。
 【任务】
@@ -1603,7 +1604,7 @@ ${extraInfo}`;
 	 * 解析 AI 响应
 	 */
 	private parseAIResponse(response: string): { type: string; index: number; terastallize?: boolean; team?: string } | null {
-		if (this.debugmode) console.log('ParseAIResponse: ', response);
+		if (this.debugmode || this.aiResponseLogMode) console.log('ParseAIResponse: ', response);
 		if (!response) return null;
 
 		const moveMatch = response.match(/move\s+(\d+)(\s+terastallize)?/i);
