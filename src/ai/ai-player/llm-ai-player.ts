@@ -894,7 +894,7 @@ ${extraInfo}`;
 			}
 
 			// AI未返回有效结果
-			console.error('❌ AI返回无效指令');
+			console.error('❌ AI返回无效指令:', aiResponse);
 			throw new Error('AI返回无效指令');
 		} catch (error) {
 			console.error('❌ AI决策失败:', error);
