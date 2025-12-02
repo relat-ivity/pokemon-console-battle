@@ -536,5 +536,6 @@ module.exports = {
 	PokemonState,
 	PlayerState,
 	OpponentState,
-	isPokemonSame
+	isPokemonSame,
+	normalizeSpeciesName
 };

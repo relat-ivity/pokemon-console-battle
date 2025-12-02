@@ -31,13 +31,15 @@ interface OpponentPokemon {
 	status?: string;
 	terastallized?: boolean; // 是否已太晶化
 	teraType?: string; // 太晶化属性
+	slot?: number; // 位置索引（0 或 1）
 }
 
 export class LLMAIPlayer extends AIPlayer {
 	private readonly llmProvider: LLMProvider;
 	private readonly translator: Translator;
 	private lastRequest: SwitchRequest | TeamPreviewRequest | MoveRequest | null = null;
-	private opponentTeam: { [name: string]: OpponentPokemon } = {};
+	private opponentTeam: { [name: string]: OpponentPokemon } = {}; // 按名称追踪（单打兼容）
+	private opponentTeamSlots: (OpponentPokemon | null)[] = [null, null]; // 按位置追踪（双打）
 	private teamData: any[] | null = null;
 	private opponentTeamData: any[] | null = null;
 
@@ -281,6 +283,10 @@ export class LLMAIPlayer extends AIPlayer {
 				const speciesName = ident.split(': ')[1];
 				const condition = parts[3] || '100/100';
 
+				// 提取位置信息：p1a = slot 0, p1b = slot 1
+				const slotChar = ident.charAt(2); // 'a' 或 'b'
+				const slot = slotChar === 'a' ? 0 : slotChar === 'b' ? 1 : 0;
+
 				// 更新 opponentTeamData 的顺序（切换时与第一位交换）
 				if (this.opponentTeamData && this.opponentTeamData.length > 0) {
 					// 查找切换上场的宝可梦在队伍中的索引
@@ -306,19 +312,30 @@ export class LLMAIPlayer extends AIPlayer {
 					this.opponentTeam[key].active = false;
 				});
 
-				// 更新当前出战的宝可梦
+				// 更新当前出战的宝可梦（按名称追踪，单打兼容）
 				if (!this.opponentTeam[speciesName]) {
 					this.opponentTeam[speciesName] = {
 						name: speciesName,
 						condition: condition,
 						active: true,
-						boosts: {}
+						boosts: {},
+						slot: slot
 					};
 				} else {
 					this.opponentTeam[speciesName].condition = condition;
 					this.opponentTeam[speciesName].active = true;
 					this.opponentTeam[speciesName].boosts = {}; // 重置能力变化
+					this.opponentTeam[speciesName].slot = slot;
 				}
+
+				// 更新按位置追踪（双打）
+				this.opponentTeamSlots[slot] = {
+					name: speciesName,
+					condition: condition,
+					active: true,
+					boosts: {},
+					slot: slot
+				};
 			}
 		}
 
