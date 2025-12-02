@@ -54,6 +54,7 @@ export class LLMAIPlayer extends AIPlayer {
 
 	// 太晶化状态跟踪 - 一支队伍只能太晶化一只宝可梦
 	private myTerastallizedPokemon: string | null = null; // 我方太晶化的宝可梦名称
+	private myTeraType: string | null = null; // 我方太晶化的属性
 
 	// 作弊功能 - 80%概率获取用户操作
 	private cheatProbability: number = 0.5; // 作弊概率
