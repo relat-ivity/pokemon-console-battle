@@ -317,8 +317,8 @@ function normalizeChoice(input) {
  *
  * Pokemon Showdown 双打目标位置布局（从你的视角看）：
  *
- *   对手：  +2  +1
- *   己方：  -1  -2
+ *   对手：  +1(左)  +2(右)
+ *   己方：  -1(左)  -2(右)
  *
  * 双打格式示例：
  * - "move 1 +1,move 2 +2" 或 "m1 +1,m2 +2"：己方位置-1使用招式1攻击对手位置+1，己方位置-2使用招式2攻击对手位置+2
@@ -326,7 +326,7 @@ function normalizeChoice(input) {
  * - "move 1 +1 tera,move 2 +2" 或 "m1 +1 t,m2 +2"：己方位置-1太晶化攻击对手位置+1，己方位置-2攻击对手位置+2
  *
  * 目标位置说明：
- * - +1 或 +2：对手的位置（+1=对手右侧，+2=对手左侧）
+ * - +1 或 +2：对手的位置（1=对手左侧，2=对手右侧）
  * - -1 或 -2：己方的位置（-1=己方左侧，-2=己方右侧）
  * - 1 或 2：兼容简写，自动转换为 +1 或 +2（对手位置）
  * - 可以省略目标（对于自身增益、全场效果等不需要目标的招式）
@@ -574,13 +574,25 @@ async function startMessageLoop(battleState, streams, handlePlayerChoice, teamOr
 async function startPVEBattle() {
 	console.log('=== Pokemon Showdown PVE 对战 ===\n');
 
+	// 检查是否为双打格式和VGC格式
+	const format = process.env.LOCAL_BATTLE_FORMAT || 'gen9ou';
+	const isDoubles = format.includes('double') || format.includes('vgc');
+	const isVGC = format.includes('vgc');
+
 	// 显示操作说明
 	console.log('输入格式:');
 	console.log('    使用招式: move 1 或 m1');
 	console.log('    切换宝可梦: switch 2 或 s2');
 	console.log('    太晶化攻击: move 1 tera 或 m1 t');
 	console.log('    查看队伍: team (查看宝可梦状态)');
-	console.log('    双打: m1 1 t,s3 （己方-1使用招式1太晶化攻击对手+1位置，己方-2切换到3号宝可梦）');
+
+	if (isDoubles) {	
+		console.log('    双打指令: m1 2 t,s3 （己方左侧对对手右侧使用太晶化招式1，己方右侧切换到3号宝可梦）');
+
+		console.log('\n注意: 双打目标位置说明：');
+		console.log('    对手：+1(左) +2(右)');
+		console.log('    己方：-1(左) -2(右)');
+	}
 
 	// 选择对手
 	const {
@@ -589,7 +601,6 @@ async function startPVEBattle() {
 	} = await selectOpponent();
 
 	// 生成队伍
-	const format = process.env.LOCAL_BATTLE_FORMAT || 'gen9ou';
 	const playerName = 'Player';
 	console.log(`\n✓ 对战格式: ${format}`);
 
@@ -691,10 +702,6 @@ async function startPVEBattle() {
 		p2teaminfo += `${speciesCN} `;
 	});
 	console.log(p2teaminfo);
-
-	// 检查是否为双打格式和VGC格式
-	const isDoubles = format.includes('double') || format.includes('vgc');
-	const isVGC = format.includes('vgc');
 
 	// 选择首发宝可梦（仅非随机对战需要）
 	let teamOrder = null;

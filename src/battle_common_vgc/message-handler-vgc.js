@@ -25,15 +25,11 @@ class DoublesMessageHandler {
 
 	/**
 	 * 格式化位置显示
-	 * 对手：位置0 -> +2, 位置1 -> +1
-	 * 己方：位置0 -> -1, 位置1 -> -2
+	 * 对手：位置0(p1a,左侧) -> +1, 位置1(p1b,右侧) -> +2
+	 * 己方：位置0(p2a,左侧) -> -1, 位置1(p2b,右侧) -> -2
 	 */
 	formatPosition(slot, isPlayer) {
-		if (isPlayer) {
-			return slot === 0 ? '-1' : '-2';
-		} else {
-			return slot === 0 ? '+2' : '+1';
-		}
+		return slot === 0 ? '左' : '右';
 	}
 
 	/**

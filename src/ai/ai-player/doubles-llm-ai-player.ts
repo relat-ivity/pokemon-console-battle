@@ -48,7 +48,7 @@ export class DoublesLLMAIPlayer extends AIPlayer {
 
 	// debug设置
 	private debugmode: boolean = false;
-	private aiResponseLogMode: boolean = false;
+	private aiResponseLogMode: boolean = true;
 
 	// 场地状态跟踪
 	private weather: string | null = null;
@@ -1001,7 +1001,7 @@ ${extraInfo}`;
 
 				// 招式选项
 				if (data.moves.length > 0) {
-					prompt += '使用招式（目标: 1=对手左侧, 2=对手右侧, -1=我方队友, -2=自己）:\n';
+					prompt += '使用招式（目标: 1=对手左侧, 2=对手右侧, -1=己方左侧, -2=己方右侧）:\n';
 					data.moves.forEach((m) => {
 						const moveData = Dex.moves.get(m.move.move);
 						const moveCN = this.translate(moveData.name, 'moves');

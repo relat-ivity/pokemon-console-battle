@@ -16,11 +16,7 @@ const { displayTeamInfo, displayBattleTeamStatus } = require('../battle_common/u
  * 己方：位置0 -> -1, 位置1 -> -2
  */
 function formatPosition(slot, isPlayer) {
-	if (isPlayer) {
-		return slot === 0 ? '-1' : '-2';
-	} else {
-		return slot === 0 ? '+2' : '+1';
-	}
+	return slot === 0 ? '左' : '右';
 }
 
 /**
