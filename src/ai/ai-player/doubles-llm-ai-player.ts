@@ -855,7 +855,7 @@ export class DoublesLLMAIPlayer extends AIPlayer {
 
 		try {
 			const battleState = this.buildBattleState(request);
-			let actions = '可切换的宝可梦:\n';
+			let actions = '【可切换的宝可梦】\n';
 
 			switches.forEach((s) => {
 				const speciesName = s.pokemon.ident.split(': ')[1];
@@ -863,13 +863,52 @@ export class DoublesLLMAIPlayer extends AIPlayer {
 				const speciesData = Dex.species.get(speciesName);
 				const condition = s.pokemon.condition || '未知';
 
-				actions += `  ${s.slot}. ${speciesCN}`;
+				actions += `\n${s.slot}. ${speciesCN}`;
 				if (speciesData.types) {
 					const typesCN = speciesData.types.map((t: string) => this.translate(t, 'types'));
 					actions += ` [${typesCN.join('/')}]`;
 				}
 				actions += ` HP:${condition}`;
-				if (s.pokemon.status) actions += ` [${s.pokemon.status}]`;
+				if (s.pokemon.status) actions += ` [${this.translate(s.pokemon.status, 'status')}]`;
+
+				// 显示特性
+				if (s.pokemon.baseAbility) {
+					const abilityData = Dex.abilities.get(s.pokemon.baseAbility);
+					const abilityCN = this.translate(abilityData.name, 'abilities');
+					actions += ` 特性:${abilityCN}`;
+					if (abilityData.shortDesc) {
+						actions += ` (${abilityData.shortDesc})`;
+					}
+				}
+
+				// 显示道具
+				if (s.pokemon.item) {
+					const itemData = Dex.items.get(s.pokemon.item);
+					const itemCN = this.translate(itemData.name, 'items');
+					actions += ` 道具:${itemCN}`;
+				}
+
+				// 显示所有招式
+				if (s.pokemon.moves && s.pokemon.moves.length > 0) {
+					actions += '\n  招式: ';
+					const moveDescriptions = s.pokemon.moves.map((moveName: string) => {
+						const moveData = Dex.moves.get(moveName);
+						const moveCN = this.translate(moveData.name, 'moves');
+						const typeCN = this.translate(moveData.type, 'types');
+						const categoryCN = this.translate(moveData.category, 'category');
+						let moveDesc = `${moveCN}[${typeCN}/${categoryCN}`;
+						if (moveData.basePower) {
+							moveDesc += `/威力:${moveData.basePower}`;
+						}
+						moveDesc += `]`;
+						if (moveData.shortDesc) {
+							moveDesc += ` (${moveData.shortDesc})`;
+						}
+						return moveDesc;
+					});
+					actions += '\n    • ' + moveDescriptions.join('\n    • ');
+				}
+
 				actions += '\n';
 			});
 
@@ -986,13 +1025,161 @@ ${extraInfo}`;
 			const battleState = this.buildBattleState(this.lastRequest);
 			let prompt = '';
 
+			// 首先显示对手在场宝可梦的详细信息
+			const opponentActivePokemon = Object.values(this.opponentTeam).filter(p => p.active);
+			if (opponentActivePokemon.length > 0) {
+				prompt += '\n【对手当前在场宝可梦】\n';
+				opponentActivePokemon.forEach((oppPokemon) => {
+					const slotName = oppPokemon.slot === 0 ? '左侧' : '右侧';
+					const oppSpeciesName = oppPokemon.name;
+					const oppSpeciesCN = this.translate(oppSpeciesName, 'pokemon');
+					const oppSpeciesData = Dex.species.get(oppSpeciesName);
+
+					// 尝试从 opponentTeamData 获取完整数据
+					let fullPokemonData = null;
+					if (this.opponentTeamData) {
+						fullPokemonData = this.opponentTeamData.find(mon =>
+							this.isPokemonSame(mon.species, oppSpeciesName)
+						);
+					}
+
+					prompt += `\n${slotName} - ${oppSpeciesCN}`;
+
+					// 属性
+					if (oppSpeciesData.types) {
+						const typesCN = oppSpeciesData.types.map((t: string) => this.translate(t, 'types'));
+						prompt += ` [${typesCN.join('/')}]`;
+					}
+
+					// HP 信息
+					if (oppPokemon.condition) {
+						prompt += ` HP:${oppPokemon.condition}`;
+					}
+
+					// 特性（优先使用完整数据，否则使用已知信息）
+					const abilityName = fullPokemonData?.ability || oppPokemon.ability;
+					if (abilityName) {
+						const abilityData = Dex.abilities.get(abilityName);
+						const abilityCN = this.translate(abilityData.name, 'abilities');
+						prompt += ` 特性:${abilityCN}`;
+						if (abilityData.shortDesc) {
+							prompt += ` (${abilityData.shortDesc})`;
+						}
+					}
+
+					// 道具（优先使用完整数据，否则使用已知信息）
+					const itemName = fullPokemonData?.item || oppPokemon.item;
+					if (itemName) {
+						const itemData = Dex.items.get(itemName);
+						const itemCN = this.translate(itemData.name, 'items');
+						prompt += ` 道具:${itemCN}`;
+					}
+
+					// 太晶化状态
+					if (oppPokemon.terastallized) {
+						const teraTypeCN = oppPokemon.teraType ? this.translate(oppPokemon.teraType, 'types') : '未知';
+						prompt += ` [已太晶化:${teraTypeCN}]`;
+					}
+
+					// 招式（优先显示完整数据，否则显示已知招式）
+					const movesToShow = fullPokemonData?.moves || oppPokemon.moves;
+					if (movesToShow && movesToShow.length > 0) {
+						const moveLabel = fullPokemonData?.moves ? '招式' : '已知招式';
+						prompt += `\n  ${moveLabel}:`;
+						const movesList = movesToShow.map((moveName: string) => {
+							const moveData = Dex.moves.get(moveName);
+							const moveCN = this.translate(moveData.name, 'moves');
+							const typeCN = this.translate(moveData.type, 'types');
+							const categoryCN = this.translate(moveData.category, 'category');
+							let moveDesc = `${moveCN}[${typeCN}/${categoryCN}`;
+							if (moveData.basePower) {
+								moveDesc += `/威力:${moveData.basePower}`;
+							}
+							if (moveData.accuracy !== true && moveData.accuracy) {
+								moveDesc += `/命中:${moveData.accuracy}`;
+							}
+							moveDesc += `]`;
+							if (moveData.shortDesc) {
+								moveDesc += ` (${moveData.shortDesc})`;
+							}
+							return moveDesc;
+						});
+						prompt += '\n    • ' + movesList.join('\n    • ');
+					}
+
+					prompt += '\n';
+				});
+				prompt += '\n';
+			}
+
 			// 构建两个位置的选项
+			prompt += '【我方当前在场宝可梦 - 可用操作】\n';
 			positionData.forEach((data, index) => {
 				const positionName = index === 0 ? '左侧位置' : '右侧位置';
 				const speciesName = data.pokemon.ident.split(': ')[1];
 				const speciesCN = this.translate(speciesName, 'pokemon');
+				const speciesData = Dex.species.get(speciesName);
 
 				prompt += `\n【${positionName} - ${speciesCN}】\n`;
+
+				// 显示当前宝可梦的详细信息
+				if (speciesData.types) {
+					const typesCN = speciesData.types.map((t: string) => this.translate(t, 'types'));
+					prompt += `  属性: [${typesCN.join('/')}]`;
+				}
+
+				const condition = data.pokemon.condition || '未知';
+				if (condition.includes('fnt')) {
+					prompt += ` [已倒下]`;
+				} else {
+					const hpMatch = condition.match(/(\d+)\/(\d+)/);
+					if (hpMatch) {
+						const current = parseInt(hpMatch[1]);
+						const max = parseInt(hpMatch[2]);
+						const percent = Math.round((current / max) * 100);
+						prompt += ` HP:${percent}%`;
+					}
+				}
+
+				if (data.pokemon.baseAbility) {
+					const abilityData = Dex.abilities.get(data.pokemon.baseAbility);
+					const abilityCN = this.translate(abilityData.name, 'abilities');
+					prompt += ` 特性:${abilityCN}`;
+					if (abilityData.shortDesc) {
+						prompt += ` (${abilityData.shortDesc})`;
+					}
+				}
+
+				if (data.pokemon.item) {
+					const itemData = Dex.items.get(data.pokemon.item);
+					const itemCN = this.translate(itemData.name, 'items');
+					prompt += ` 道具:${itemCN}`;
+				}
+
+				// 显示所有招式及其详细描述
+				if (data.pokemon.moves && data.pokemon.moves.length > 0) {
+					prompt += `\n  持有招式:\n`;
+					data.pokemon.moves.forEach((moveName: string) => {
+						const moveData = Dex.moves.get(moveName);
+						const moveCN = this.translate(moveData.name, 'moves');
+						const typeCN = this.translate(moveData.type, 'types');
+						const categoryCN = this.translate(moveData.category, 'category');
+						prompt += `    • ${moveCN} [${typeCN}/${categoryCN}`;
+						if (moveData.basePower) {
+							prompt += `/威力:${moveData.basePower}`;
+						}
+						if (moveData.accuracy !== true && moveData.accuracy) {
+							prompt += `/命中:${moveData.accuracy}`;
+						}
+						prompt += `]`;
+						if (moveData.shortDesc) {
+							prompt += ` - ${moveData.shortDesc}`;
+						}
+						prompt += '\n';
+					});
+				}
+
+				prompt += '\n';
 
 				if (data.moves.length === 0 && data.switches.length === 0) {
 					prompt += '  无可用操作\n';
@@ -1001,15 +1188,13 @@ ${extraInfo}`;
 
 				// 招式选项
 				if (data.moves.length > 0) {
-					prompt += '使用招式（目标: 1=对手左侧, 2=对手右侧, -1=己方左侧, -2=己方右侧）:\n';
+					prompt += '可用操作 - 使用招式（目标: 1=对手左侧, 2=对手右侧, -1=己方左侧, -2=己方右侧）:\n';
 					data.moves.forEach((m) => {
 						const moveData = Dex.moves.get(m.move.move);
 						const moveCN = this.translate(moveData.name, 'moves');
-						const typeCN = this.translate(moveData.type, 'types');
-						const categoryCN = this.translate(moveData.category, 'category');
-						prompt += `  ${m.choice}: ${moveCN} [${typeCN}/${categoryCN}]`;
-						if (moveData.shortDesc) {
-							prompt += ` - ${moveData.shortDesc}`;
+						prompt += `  ${m.choice}: ${moveCN}`;
+						if (m.move.zMove) {
+							prompt += ' [Z招式]';
 						}
 						prompt += '\n';
 					});
@@ -1342,13 +1527,15 @@ ${extraInfo}`;
 现在是VGC全球总决赛，你的目标是夺得世界冠军。这是你最后一次参加比赛，每一步都务必谨慎思考。
 你需要根据双打战术、克制关系、伤害计算、情报，选择胜率最高的行动方案。
 【VGC双打核心策略】
-1. 集火：与队友集火击败对手一只，形成数量优势
-2. 保护：判断对手是否会集火自己，适时使用保护
-3. 联防联攻：前排后排配合，属性互补
-4. 速度控制：顺风、戏法空间、威吓
-5. 属性转换：太晶化转属性防守或进攻
+1. 威吓：利用威吓降低对手攻击，压制物攻宝可梦。
+2. 保护：预判对手操作进行保护，注意连续保护成功率只有三分之一。广域防守可以让对方的群体伤害技能无效，且可以连续使用，注意无法保护单体伤害技能。
+3. 天气和场地：注意天气和场地会影响双方宝可梦伤害，且电场不能睡眠，精神场地先制攻击无效。需要获得场地和天气的控制权。
+4. 速度控制：顺风速度翻倍、戏法空间速度慢的先手。
+5. 击掌奇袭：击掌奇袭可以让对手无法行动，但是只有登场的第一回合有效，注意看历史操作记录，是否为上场的第一回合。
+6. 异常状态：麻痹降低对手速度，烧伤削弱物攻宝可梦。
 【输出格式】只输出一句指令${debugInfo}
 【重要】你有时候可以获得对手的操作，请根据对手的操作信息做出压制。
+【对战历史】对战历史可以分析出我方和对方的策略倾向，一定要合理利用。
 【伤害计算】我会提供精确的伤害计算结果（满血百分比），**必须使用这些数据**做决策。
 `;
 	}

@@ -333,7 +333,7 @@ class DoublesBattleState {
 		this.opponentTeam = opponentTeam;
 
 		this.lastWeather = null;
-		this.lastTerrains = new Set();
+		this.lastTerrain = null;
 
 		this.formatId = formatId;
 	}
@@ -343,7 +343,7 @@ class DoublesBattleState {
 	 */
 	startTurn(turnNumber) {
 		this.currentTurn = turnNumber;
-		this.lastTerrains = new Set(this.field.terrain);
+		this.lastTerrain = this.field.terrain;
 	}
 
 	/**
