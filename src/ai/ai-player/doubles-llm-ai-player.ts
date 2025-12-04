@@ -48,7 +48,7 @@ export class DoublesLLMAIPlayer extends AIPlayer {
 
 	// debug设置
 	private debugmode: boolean = false;
-	private aiResponseLogMode: boolean = true;
+	private aiResponseLogMode: boolean = false;
 
 	// 场地状态跟踪
 	private weather: string | null = null;
